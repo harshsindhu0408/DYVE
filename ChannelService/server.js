@@ -11,6 +11,10 @@ server.on("error", (error) => {
   console.error("Server error:", error);
 });
 
+app.get("/health", (req, res) => {
+  res.status(200).json({ status: "Channel service healthy" });
+});
+
 // Handle unhandled promise rejections
 process.on("unhandledRejection", (err) => {
   console.error("Unhandled Rejection:", err);
