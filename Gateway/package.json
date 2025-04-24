@@ -1,0 +1,21 @@
+{
+  "name": "gateway",
+  "version": "1.0.0",
+  "description": "Gateway service used for entry of all frontend requests",
+  "main": "app.js",
+  "type": "module",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "start": "node app.js",
+    "dev": "nodemon app.js"
+  },
+  "author": "Harsh Sindhu",
+  "license": "ISC",
+  "dependencies": {
+    "express": "^4.21.1",
+    "express-http-proxy": "^2.1.1",
+    "http-proxy-middleware": "^3.0.3",
+    "mongo": "^0.1.0",
+    "nodemon": "^3.1.9"
+  }
+}
