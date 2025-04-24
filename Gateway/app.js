@@ -31,7 +31,7 @@ app.use("/workspace", createProxyMiddleware({
 }));
 
 app.use("/channel", createProxyMiddleware({
-  target: "http://localhost:3003",
+  target: process.env.BASE_CHANNEL,
   changeOrigin: true,
   onError: (err, req, res) => {
     console.error("User Service Proxy error:", err);
@@ -47,6 +47,10 @@ app.use("/channel", createProxyMiddleware({
 // Health check endpoint
 app.get("/health", (req, res) => {
   res.status(200).json({ status: "Gateway healthy" });
+});
+
+app.get("/", (req, res) => {
+  res.status(200).json({ status: "Server working healthy" });
 });
 
 app.listen(3000, () => {
