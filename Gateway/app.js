@@ -5,7 +5,7 @@ const app = express();
 
 // Proxy for User Service
 app.use("/user", createProxyMiddleware({
-  target: "http://localhost:3001",
+  target: process.env.BASE_USER,
   changeOrigin: true,
   onError: (err, req, res) => {
     console.error("User Service Proxy error:", err);
@@ -18,7 +18,7 @@ app.use("/user", createProxyMiddleware({
 }));
 
 app.use("/workspace", createProxyMiddleware({
-  target: "http://localhost:3002",
+  target: process.env.BASE_WORKSPACE,
   changeOrigin: true,
   onError: (err, req, res) => {
     console.error("User Service Proxy error:", err);
