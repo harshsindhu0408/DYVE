@@ -148,14 +148,20 @@ export async function updateUserProfile(req, res) {
       return sendErrorResponse(res, 404, "USER_NOT_FOUND", "User not found");
     }
 
-    await eventBus.publish('user:updated', {
-      userId: updatedUser._id,
-      changes: {
-        name: updatedUser.name,
-        avatar: updatedUser.avatar,
-        status: updatedUser.status
-      }
-    });
+    try {
+      await eventBus.publish("user_events", "user.updated", {
+        userId: updatedUser._id,
+        changes: {
+          name: updatedUser.name,
+          avatar: updatedUser.avatar,
+          status: updatedUser.status,
+        },
+      });
+    } catch (e) {
+      console.error("Failed to publish user update event:", e);
+      // The eventBus will automatically retry when connection is restored
+      // Continue with the response - the message is queued for retry
+    }
 
     return sendSuccessResponse(
       res,

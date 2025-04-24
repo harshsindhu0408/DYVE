@@ -1,7 +1,6 @@
 import dotenv from "dotenv";
 import express from "express";
 import connectDB from "./db/db.js";
-import amqp from "amqplib";
 import userRoutes from "./routes/user.routes.js";
 import authRoutes from "./routes/auth.routes.js";
 import cookieParser from "cookie-parser";
@@ -15,6 +14,7 @@ const app = express();
 connectDB();
 dotenv.config();
 await eventBus.connect();
+console.log("RabbitMQ connection initialized in app.js");
 
 setupUserVerification();
 await startUserRpcHandler();
