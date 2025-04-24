@@ -6,7 +6,7 @@ import {
   sendSuccessResponse,
 } from "../Utils/responseUtils.js";
 import { hashPassword } from "../helpers/bcrypt.js";
-import { eventBus } from "../../ChannelService/services/rabbit.js";
+import { eventBus } from "../services/rabbit.js";
 
 // Tested
 export async function getUserProfile(req, res) {
