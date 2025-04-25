@@ -5,7 +5,9 @@ import { createProxyMiddleware } from "http-proxy-middleware";
 const app = express();
 
 
-app.use(cors());
+app.use(cors({
+  origin: '*',
+}));
 
 // Proxy for User Service
 app.use("/user", createProxyMiddleware({
