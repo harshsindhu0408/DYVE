@@ -12,6 +12,7 @@
   "author": "Harsh Sindhu",
   "license": "ISC",
   "dependencies": {
+    "cors": "^2.8.5",
     "express": "^4.21.1",
     "express-http-proxy": "^2.1.1",
     "http-proxy-middleware": "^3.0.3",

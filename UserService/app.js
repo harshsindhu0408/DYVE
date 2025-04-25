@@ -1,4 +1,5 @@
 import dotenv from "dotenv";
+import cors from "cors";
 import express from "express";
 import connectDB from "./db/db.js";
 import userRoutes from "./routes/user.routes.js";
@@ -11,6 +12,9 @@ import {  startUserRpcHandler } from "./rpcHandlers/getUserInfo.js";
 
 
 const app = express();
+app.use(cors({
+  origin: '*',
+}));
 connectDB();
 dotenv.config();
 await eventBus.connect();
