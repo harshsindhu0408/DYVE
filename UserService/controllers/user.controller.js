@@ -152,8 +152,8 @@ export async function updateUserProfile(req, res) {
       await eventBus.publish("user_events", "user.updated", {
         userId: updatedUser._id,
         changes: {
-          name: updatedUser.name,
-          avatar: updatedUser.avatar,
+          name: updatedUser.profile.name,
+          avatar: updatedUser.profile.avatar,
           status: updatedUser.status,
         },
       });
@@ -215,6 +215,22 @@ export async function deleteUserProfile(req, res) {
     const deletedUser = await User.findByIdAndDelete(userId).session(
       req.dbSession
     );
+
+    try {
+      await eventBus.publish("user_events", "user.deleted", {
+        userId: deletedUser._id,
+        changes: {
+          name: deletedUser.profile.name,
+          avatar: deletedUser.profile.avatar,
+          status: deletedUser.status,
+        },
+      });
+    } catch (e) {
+      console.error("Failed to publish user update event:", e);
+      // The eventBus will automatically retry when connection is restored
+      // Continue with the response - the message is queued for retry
+    }
+
 
     // Optionally delete all active sessions associated with the user
     await Session.deleteMany({ userId }).session(req.dbSession); // if you use Session model

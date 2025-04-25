@@ -14,4 +14,9 @@ export const config = {
   redisPort: process.env.REDIS_PORT || 6379,
   redisHost: process.env.REDIS_HOST || "localhost",
   port: process.env.PORT || 3002,
+  email: {
+    service: process.env.MAIL_HOST || "gmail",
+    user: process.env.MAIL_USER || "",
+    pass: process.env.MAIL_PASS || "",
+  }
 };

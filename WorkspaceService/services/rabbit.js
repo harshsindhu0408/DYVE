@@ -41,14 +41,22 @@ class EventBus {
       // Establish new connection
       this.connection = await amqplib.connect(process.env.RABBITMQ_URL, {
         heartbeat: 30,
+        timeout: 5000 // Add connection timeout
       });
-
-      // Create channel
-      this.channel = await this.connection.createChannel();
-      await this.channel.prefetch(1);
-
-      // Setup event handlers
-      this.connection.on("close", () => this.handleConnectionClose());
+  
+      this.channel = await this.connection.createConfirmChannel(); // Use confirm channel
+      await this.channel.prefetch(10); // Slightly higher prefetch
+  
+      // Add these event handlers
+      this.channel.on('error', (err) => {
+        console.error('Channel error:', err);
+        this.handleConnectionError(err);
+      });
+      
+      this.channel.on('close', () => {
+        console.log('Channel closed');
+        this.handleConnectionClose();
+      });
       this.connection.on("error", (err) => this.handleConnectionError(err));
 
       console.log("✅ Connected to RabbitMQ");
@@ -142,8 +150,13 @@ class EventBus {
   }
 
   async subscribe(exchange, queue, routingKey, handler) {
-    // Store subscription
-    this.subscriptions.push({ exchange, queue, routingKey, handler });
+    if (!exchange || !queue || !routingKey || !handler) {
+      throw new Error('Missing required subscription parameters');
+    }
+  
+    // Store subscription before attempting
+    const subscription = { exchange, queue, routingKey, handler };
+    this.subscriptions.push(subscription);
 
     try {
       await this.ensureConnection();
@@ -160,32 +173,43 @@ class EventBus {
   }
 
   async setupSubscription(exchange, queue, routingKey, handler) {
-    await this.channel.assertExchange(exchange, "topic", { durable: true });
-
-    const q = await this.channel.assertQueue(queue, {
-      durable: true,
-      arguments: {
-        "x-dead-letter-exchange": `${exchange}.dead`,
-        "x-dead-letter-routing-key": routingKey,
-      },
-    });
-
-    await this.channel.bindQueue(q.queue, exchange, routingKey);
-
-    this.channel.consume(q.queue, async (msg) => {
-      try {
-        const data = JSON.parse(msg.content.toString());
-        await handler(data);
-        this.channel.ack(msg);
-      } catch (error) {
-        console.error("Message processing failed:", error);
-        if (this.channel) {
-          this.channel.nack(msg, false, false);
+    try {
+      await this.channel.assertExchange(exchange, "topic", { durable: true });
+  
+      const COMMON_QUEUE_PARAMS = {
+        durable: true,
+        arguments: {
+          "x-dead-letter-exchange": "dead_letters",
+          "x-message-ttl": 3600000, // 1 hour TTL example
+        },
+      };
+  
+      // Store the queue assertion result
+      const queueAssertion = await this.channel.assertQueue(queue, COMMON_QUEUE_PARAMS);
+      
+      await this.channel.bindQueue(queueAssertion.queue, exchange, routingKey);
+  
+      this.channel.consume(queueAssertion.queue, async (msg) => {
+        if (!msg) return; // Handle null messages
+  
+        try {
+          const data = JSON.parse(msg.content.toString());
+          await handler(data);
+          this.channel.ack(msg);
+        } catch (error) {
+          console.error("Message processing failed:", error);
+          if (this.channel) {
+            // Reject message without requeue
+            this.channel.nack(msg, false, false);
+          }
         }
-      }
-    });
-
-    console.log(`Subscribed to ${exchange}:${routingKey}`);
+      });
+  
+      console.log(`Subscribed to ${exchange}:${routingKey} (queue: ${queue})`);
+    } catch (error) {
+      console.error(`Failed to setup subscription for ${exchange}:${routingKey}`, error);
+      throw error;
+    }
   }
 
   async replayOperations() {

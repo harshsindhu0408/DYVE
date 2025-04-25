@@ -3,8 +3,8 @@ import { WorkspaceMember } from "../models/workspaceMember.model.js";
 import {
   sendSuccessResponse,
   sendErrorResponse,
-} from "../Utils/responseUtils.js";
-import { eventBus } from "../shared/eventBus.js";
+} from "../utils/responseUtils.js";
+import { eventBus } from "../services/rabbit.js";
 import {
   handleFileUpload,
   workspaceLogoUpload,

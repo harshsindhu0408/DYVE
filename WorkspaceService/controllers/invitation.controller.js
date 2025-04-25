@@ -9,6 +9,8 @@ import {
 } from "../utils/responseUtils.js";
 import redis from "../services/redis.js";
 import { verifyUserViaEventBus } from "../services/verifyUserViaEventBus.js";
+import { generateInviteEmail } from "../emailTemplates/inviteWorkspaceTemplate.js";
+import { sendEmail } from "../services/email.service.js";
 
 export const inviteUserByEmail = async (req, res) => {
   try {
@@ -92,8 +94,18 @@ export const inviteUserByEmail = async (req, res) => {
     });
     await newInvite.save();
 
-    // 5. Send Email (omitted for brevity)
-    // ...
+    const acceptUrl = `${config.app.frontendUrl}/accept-invite?token=${inviteToken}`;
+    const emailSubject = `You've been invited to join ${workspace.name} on DYVE`;
+    const emailHtml = generateInviteEmail({
+      workspaceName: workspace.name,
+      inviterName: req.user.profile.name,
+      inviterAvatar: req.user.profile.avatar,
+      role: role,
+      acceptUrl: acceptUrl,
+      expiryDays: 7,
+    });
+
+    await sendEmail(email, emailSubject, emailHtml);
 
     return sendSuccessResponse(res, 201, "INVITE_SENT", "Invitation sent");
   } catch (error) {

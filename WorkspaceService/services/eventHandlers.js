@@ -1,12 +1,12 @@
 import { eventBus } from "./rabbit.js";
-import { UserCache } from "./userCache.js";
-
 export const setupEventListeners = () => {
+  console.log("All event listeners initialized");
   // User profile updates
   eventBus.subscribe(
     "user_events",
     "workspace_service_queue",
-    "user:updated",
+    "user.updated",
+    "user.deleted",
     async (data) => {
       try {
         const { userId, changes } = data;
@@ -20,7 +20,6 @@ export const setupEventListeners = () => {
             },
           }
         );
-        UserCache.invalidate(userId); // Clear cache if needed
       } catch (error) {
         console.error("Failed to process user update:", error);
       }
@@ -29,9 +28,9 @@ export const setupEventListeners = () => {
 
   // Workspace member role changes
   eventBus.subscribe(
-    "workspace_events",
-    "channel_service_queue",
-    "member.role_updated",
+    "user_events",
+    "workspace_service_events_queue", // Different from RPC queue
+    "user.updated",
     async (data) => {
       // Sync role changes to channel service if needed
       console.log("Role updated event received:", data);

@@ -10,7 +10,12 @@ export const startConsumer = async () => {
     const connection = await amqp.connect(process.env.RABBITMQ_URL);
     const channel = await connection.createChannel();
 
-    await channel.assertQueue("workspace_rpc_queue", { durable: true });
+    await channel.assertQueue("workspace_rpc_queue", { 
+      durable: true,
+      arguments: {
+        'x-message-ttl': 60000 // 1 minute TTL for RPC
+      }
+    });
     channel.prefetch(1); // Process one message at a time
 
     console.log("🔁 Workspace RPC Consumer running...");

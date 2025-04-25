@@ -1,40 +1,49 @@
 import express from "express";
-import cors from 'cors';
+import cors from "cors";
 import { createProxyMiddleware } from "http-proxy-middleware";
+import dotenv from "dotenv";
 
 const app = express();
+dotenv.config();
 
-
-app.use(cors({
-  origin: '*',
-}));
+app.use(
+  cors({
+    origin: "*",
+  })
+);
 
 // Proxy for User Service
-app.use("/user", createProxyMiddleware({
-  target: process.env.BASE_USER,
-  changeOrigin: true,
-  onError: (err, req, res) => {
-    console.error("User Service Proxy error:", err);
-    res.status(502).json({
-      success: false,
-      message: "User service is currently unavailable",
-    });
-  },
-  timeout: 5000, // 5 second timeout
-}));
+app.use(
+  "/user",
+  createProxyMiddleware({
+    target: process.env.BASE_USER,
+    changeOrigin: true,
+    onError: (err, req, res) => {
+      console.error("User Service Proxy error:", err);
+      res.status(502).json({
+        success: false,
+        message: "User service is currently unavailable",
+      });
+    },
+    timeout: 5000, // 5 second timeout
+  })
+);
 
-// app.use("/workspace", createProxyMiddleware({
-//   target: process.env.BASE_WORKSPACE,
-//   changeOrigin: true,
-//   onError: (err, req, res) => {
-//     console.error("Workspace Service Proxy error:", err);
-//     res.status(502).json({
-//       success: false,
-//       message: "Workspace service is currently unavailable",
-//     });
-//   },
-//   timeout: 5000, // 5 second timeout
-// }));
+app.use(
+  "/workspace",
+  createProxyMiddleware({
+    target: process.env.BASE_WORKSPACE,
+    changeOrigin: true,
+    onError: (err, req, res) => {
+      console.error("Workspace Service Proxy error:", err);
+      res.status(502).json({
+        success: false,
+        message: "Workspace service is currently unavailable",
+      });
+    },
+    timeout: 5000, // 5 second timeout
+  })
+);
 
 // app.use("/channel", createProxyMiddleware({
 //   target: process.env.BASE_CHANNEL,
@@ -48,7 +57,6 @@ app.use("/user", createProxyMiddleware({
 //   },
 //   timeout: 5000, // 5 second timeout
 // }));
-
 
 // Health check endpoint
 app.get("/health", (req, res) => {

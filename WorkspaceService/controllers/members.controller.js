@@ -1,8 +1,5 @@
 import { handleUpdateMemberRole } from "../rpcHandlers/workspaceRpcHandlers.js";
-import {
-  sendSuccessResponse,
-  sendErrorResponse,
-} from "../Utils/responseUtils.js";
+import { sendSuccessResponse, sendErrorResponse } from "../utils/responseUtils.js";
 import mongoose from "mongoose";
 
 export const updateMemberRole = async (req, res) => {

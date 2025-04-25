@@ -1,4 +1,5 @@
-import { WorkspaceMember, Workspace } from "../models/workspaceMember.model.js";
+import { WorkspaceMember } from "../models/workspaceMember.model.js";
+import { Workspace } from "../models/workspace.model.js";
 import mongoose from "mongoose";
 import { eventBus } from "../services/rabbit.js";
 

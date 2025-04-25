@@ -8,14 +8,19 @@ import { setupUserEventListeners } from "./services/userCache.js";
 import { eventBus } from "./services/rabbit.js";
 import { setupEventListeners } from "./services/eventHandlers.js";
 import { startConsumer } from "./rpcHandlers/index.js";
+import cors from 'cors';
 
+dotenv.config();
 const app = express();
 connectDB();
 await eventBus.connect();
 setupUserEventListeners();
 setupEventListeners();
 await startConsumer();
-dotenv.config();
+app.use(cors({
+  origin: '*',
+}));
+
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));

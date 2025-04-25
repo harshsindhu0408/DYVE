@@ -4,6 +4,7 @@ import redis from "./redis.js";
 
 // Initialize listener
 export const setupUserEventListeners = () => {
+  console.log("User event listeners initialized");
   eventBus.subscribe(
     "user_events",
     "workspace_service_queue",
