@@ -4,15 +4,8 @@ import { createProxyMiddleware } from "http-proxy-middleware";
 
 const app = express();
 
-const corsOptions = {
-  origin: ['http://localhost:5173', 'https://your-production-domain.com'],
-  credentials: true,
-  optionsSuccessStatus: 200 // For legacy browser support
-};
 
-app.use(cors({
-  origin: '*' // Or your specific frontend URLs
-}));
+app.use(cors());
 
 // Proxy for User Service
 app.use("/user", createProxyMiddleware({
