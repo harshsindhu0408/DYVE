@@ -1,3 +1,4 @@
+
 // rpc/userRpcHandler.js
 import amqplib from "amqplib";
 import { User } from "../models/user.model.js";

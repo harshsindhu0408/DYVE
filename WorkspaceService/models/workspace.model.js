@@ -42,8 +42,8 @@ const WorkspaceSchema = new mongoose.Schema(
       default: false,
     },
     logo: {
-      type: String,
-      default: "",
+      path: { type: String },
+      url: { type: String }
     },
   },
   { timestamps: true }

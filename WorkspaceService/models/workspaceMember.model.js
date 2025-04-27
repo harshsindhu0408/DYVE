@@ -24,6 +24,11 @@ const WorkspaceMemberSchema = new mongoose.Schema(
       required: true,
       index: true,
     },
+    userDisplay: {
+      name: { type: String, required: true },
+      avatar: String,
+      status: String,
+    },
     role: {
       type: String,
       enum: ["admin", "member", "guest", "owner"],
@@ -56,7 +61,9 @@ const WorkspaceMemberSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
-
 WorkspaceMemberSchema.index({ userId: 1, workspaceId: 1 }, { unique: true });
 
-export const WorkspaceMember = mongoose.model("WorkspaceMember", WorkspaceMemberSchema);
+export const WorkspaceMember = mongoose.model(
+  "WorkspaceMember",
+  WorkspaceMemberSchema
+);

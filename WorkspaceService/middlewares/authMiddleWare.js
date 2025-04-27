@@ -50,10 +50,9 @@ export const userAuthMiddlewareForWorkspace = async (req, res, next) => {
     // Check if user exists
     let user;
     try {
-      const response = await axios.get(
-        `${config.user}/profile`,
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
+      const response = await axios.get(`${config.userBaseUrl}/profile`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
       user = response.data;
     } catch (err) {
       console.error("Error details:", {
@@ -73,7 +72,7 @@ export const userAuthMiddlewareForWorkspace = async (req, res, next) => {
       });
     }
 
-    if (user.tokenVersion !== decoded.tokenVersion) {
+    if (user.data.tokenVersion !== decoded.tokenVersion) {
       return res.status(401).json({
         success: false,
         code: "INVALID_TOKEN_VERSION",
@@ -82,7 +81,7 @@ export const userAuthMiddlewareForWorkspace = async (req, res, next) => {
     }
 
     // Check if user is active
-    if (user.status !== "active") {
+    if (user.data.status !== "active") {
       return res.status(403).json({
         success: false,
         code: "ACCOUNT_DEACTIVATED",

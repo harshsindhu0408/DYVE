@@ -11,6 +11,10 @@ import { generateTokens } from "../helpers/helperFunctions.js";
 import { sendEmail } from "../services/email.service.js";
 import { config } from "../config/config.js";
 import { eventBus } from "../services/rabbit.js";
+import { generateForgotPasswordEmail, generatePasswordResetConfirmationEmail } from "../emailTemplates/allEmailTemplates.js";
+import crypto from "crypto";
+import { getGeoLocation } from "../Utils/geoLocation.js";
+
 
 // Tested
 export async function register(req, res) {
@@ -246,12 +250,11 @@ export async function sendForgotPaswordOTP(req, res) {
     await user.save();
 
     // Send OTP via email (in production, you would queue this)
-    await sendEmail({
-      to: email,
-      subject: "Password Reset OTP",
-      text: `Your OTP is: ${otp}`,
-      html: `<p>Your OTP is: <strong>${otp}</strong></p>`,
-    });
+    await sendEmail(
+      email,
+      "Password Reset OTP",
+      generateForgotPasswordEmail(otp)
+    );
 
     return sendSuccessResponse(res, 200, "OTP_SENT", "OTP sent successfully", {
       email: user.email,
@@ -288,7 +291,6 @@ export async function verifyForgotPasswordOTP(req, res) {
       email: { $regex: new RegExp(`^${email}$`, "i") },
     });
     if (!user) {
-      // Consistent response whether user exists or not
       return sendErrorResponse(
         res,
         400,
@@ -310,16 +312,19 @@ export async function verifyForgotPasswordOTP(req, res) {
       );
     }
 
-    user.forgotPasswordOTP = undefined;
-    user.forgotPasswordOTPExpires = undefined;
-    await user.save();
-
+    // Generate reset token first before clearing OTP
     const resetToken = crypto.randomBytes(32).toString("hex");
     const resetTokenExpires = new Date(Date.now() + 10 * 60 * 1000);
 
+    // Update all fields in a single operation
+    user.forgotPasswordOTP = undefined;
+    user.forgotPasswordOTPExpires = undefined;
     user.passwordResetToken = resetToken;
     user.passwordResetTokenExpires = resetTokenExpires;
+    
     await user.save();
+
+    await Session.deleteMany({ userId: user._id });
 
     return sendSuccessResponse(
       res,
@@ -329,7 +334,7 @@ export async function verifyForgotPasswordOTP(req, res) {
       {
         email: user.email,
         userId: user._id,
-        resetToken, // Send this to frontend
+        resetToken,
         expiresIn: "10 minutes",
       }
     );
@@ -346,7 +351,7 @@ export async function verifyForgotPasswordOTP(req, res) {
 
 export async function setNewPassword(req, res) {
   try {
-    const { email, newPassword, confirmPassword } = req.body;
+    const { email, newPassword, confirmPassword, resetToken } = req.body;
 
     if (!email || !newPassword || !confirmPassword || !resetToken) {
       return sendErrorResponse(
@@ -413,12 +418,15 @@ export async function setNewPassword(req, res) {
     user.passwordResetTokenExpires = undefined;
     await user.save();
 
-    await sendEmail({
-      to: email,
-      subject: "Password Changed Successfully",
-      text: "Your password has been successfully changed.",
-      html: "<p>Your password has been successfully changed.</p>",
-    });
+    const ip = req.headers['x-forwarded-for']?.split(',')[0] || req.socket.remoteAddress;
+    const location = await getGeoLocation(ip);
+
+    await sendEmail(
+      email,
+      "Password Changed Successfully",
+      generatePasswordResetConfirmationEmail(location)
+    );
+    
 
     // 8. Invalidate All Sessions (optional but recommended)
     await Session.deleteMany({ userId: user._id });
@@ -427,7 +435,7 @@ export async function setNewPassword(req, res) {
       res,
       200,
       "PASSWORD_RESET_SUCCESS",
-      "Password has been reset successfully",
+      "Password reset successfully",
       {
         email: user.email,
         userId: user._id,

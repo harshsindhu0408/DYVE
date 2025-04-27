@@ -12,12 +12,17 @@ import { userAuthMiddlewareForWorkspace } from "../middlewares/authMiddleWare.js
 
 const router = express.Router();
 
-router.post("/", userAuthMiddlewareForWorkspace, createWorkspace);
+router.post(
+  "/",
+  userAuthMiddlewareForWorkspace,
+  workspaceLogoUpload.single("logo"),
+  createWorkspace
+);
 router.get("/", userAuthMiddlewareForWorkspace, listWorkspaces);
 router.get("/:slug", userAuthMiddlewareForWorkspace, getWorkspace);
 router.patch("/:slug", userAuthMiddlewareForWorkspace, updateWorkspace);
 router.delete("/:slug", userAuthMiddlewareForWorkspace, deleteWorkspace);
-router.post(
+router.patch(
   "/:slug/logo",
   userAuthMiddlewareForWorkspace,
   workspaceLogoUpload.single("logo"),

@@ -1,4 +1,5 @@
 import { Workspace } from "../models/workspace.model.js";
+import mongoose from "mongoose";
 import { WorkspaceMember } from "../models/workspaceMember.model.js";
 import {
   sendSuccessResponse,
@@ -20,9 +21,10 @@ const validateOwnership = async (workspaceId, userId) => {
   return !!workspace;
 };
 
+// tested
 export const createWorkspace = async (req, res) => {
   try {
-    await handleFileUpload(workspaceLogoUpload.single("logo"))(req, res);
+    console.log("file inside the request is ---", req.file);
 
     const { name, description } = req.body;
     const ownerId = req.user._id;
@@ -44,8 +46,8 @@ export const createWorkspace = async (req, res) => {
 
     if (req.file) {
       workspaceData.logo = {
-        path: req.file.path,
-        url: `/uploads/workspaces/logos/${req.file.filename}`,
+        path: req.file.path, // Full server path to the file
+        url: `/uploads/workspaces/logos/${req.file.filename}`, // Public accessible URL
       };
     }
 
@@ -56,6 +58,13 @@ export const createWorkspace = async (req, res) => {
       workspaceId: newWorkspace._id,
       role: "owner",
       status: "active",
+      userDisplay: {
+        name: req.user.profile.name,
+        avatar: req.user.profile.avatar,
+        status: "active",
+      },
+      invitedBy: ownerId,
+      email: req.user.email,
     });
 
     await eventBus.publish("workspace_events", "workspace.created", {
@@ -121,6 +130,7 @@ export const createWorkspace = async (req, res) => {
   }
 };
 
+// tested
 export const getWorkspace = async (req, res) => {
   try {
     const { slug } = req.params;
@@ -173,6 +183,7 @@ export const getWorkspace = async (req, res) => {
   }
 };
 
+// tested
 export const updateWorkspace = async (req, res) => {
   const session = await mongoose.startSession();
   session.startTransaction();
@@ -182,10 +193,16 @@ export const updateWorkspace = async (req, res) => {
     const { name, description } = req.body;
     const userId = req.user._id;
 
-    // Handle file upload if present
-    if (req.files?.logo) {
-      await handleFileUpload(workspaceLogoUpload.single("logo"))(req, res);
+    if(name.length > 50) {
+      await session.abortTransaction();
+      return sendErrorResponse(
+        res,
+        403,
+        "NAME_TOO_LONG",
+        "You can only choose workspace name with 50 characters"
+      );
     }
+
 
     // Find workspace
     const workspace = await Workspace.findOne({ slug }).session(session);
@@ -219,16 +236,6 @@ export const updateWorkspace = async (req, res) => {
       updates.description = description.trim();
     }
 
-    // Handle logo update
-    let oldLogoPath = null;
-    if (req.file) {
-      oldLogoPath = workspace.logo?.path || null;
-      updates.logo = {
-        path: req.file.path,
-        url: `/uploads/workspaces/logos/${req.file.filename}`,
-      };
-    }
-
     // Apply updates
     const updatedWorkspace = await Workspace.findOneAndUpdate(
       { _id: workspace._id },
@@ -238,12 +245,6 @@ export const updateWorkspace = async (req, res) => {
 
     await session.commitTransaction();
 
-    // Clean up old logo file
-    if (oldLogoPath && fs.existsSync(oldLogoPath)) {
-      fs.unlink(oldLogoPath, (err) => {
-        if (err) console.error("Error deleting old logo:", err);
-      });
-    }
 
     // Emit update event
     await eventBus.publish("workspace_events", "workspace.updated", {
@@ -289,6 +290,7 @@ export const updateWorkspace = async (req, res) => {
   }
 };
 
+// tested
 export const deleteWorkspace = async (req, res) => {
   const session = await mongoose.startSession();
   session.startTransaction();
@@ -320,8 +322,21 @@ export const deleteWorkspace = async (req, res) => {
       );
     }
 
+    // Delete logo file if exists
+    if (workspace.logo?.path) {
+      try {
+        if (fs.existsSync(workspace.logo.path)) {
+          fs.unlinkSync(workspace.logo.path);
+        }
+      } catch (fileError) {
+        console.error("Error deleting workspace logo:", fileError);
+        // Continue with deletion even if logo deletion fails
+      }
+    }
+
     // Soft delete
     workspace.isDeleted = true;
+    workspace.logo = undefined; // Remove logo reference
     await workspace.save({ session });
 
     await session.commitTransaction();
@@ -352,6 +367,7 @@ export const deleteWorkspace = async (req, res) => {
   }
 };
 
+// tested
 export const listWorkspaces = async (req, res) => {
   try {
     const { page = 1, limit = 10, search } = req.query;
@@ -411,6 +427,7 @@ export const listWorkspaces = async (req, res) => {
   }
 };
 
+// tested
 export const updateWorkspaceLogo = async (req, res) => {
   const session = await mongoose.startSession();
   session.startTransaction();
@@ -419,8 +436,34 @@ export const updateWorkspaceLogo = async (req, res) => {
     const { slug } = req.params;
     const userId = req.user._id;
 
-    // Handle file upload
-    await handleFileUpload(workspaceLogoUpload.single("logo"))(req, res);
+    // Check if file is uploaded
+    if (!req.file) {
+      await session.abortTransaction();
+      return sendErrorResponse(
+        res,
+        400,
+        "NO_FILE_UPLOADED",
+        "No file uploaded"
+      );
+    }
+
+    // Validate file type
+    const allowedMimeTypes = ["image/jpeg", "image/png", "image/webp"];
+    if (!allowedMimeTypes.includes(req.file.mimetype)) {
+      if (fs.existsSync(req.file.path)) {
+        fs.unlink(req.file.path, (err) => {
+          if (err) console.error("Error deleting invalid file:", err);
+        });
+      }
+
+      await session.abortTransaction();
+      return sendErrorResponse(
+        res,
+        400,
+        "INVALID_FILE_TYPE",
+        "Only JPEG, PNG, and WEBP files are allowed"
+      );
+    }
 
     // Find workspace
     const workspace = await Workspace.findOne({ slug }).session(session);
@@ -435,7 +478,7 @@ export const updateWorkspaceLogo = async (req, res) => {
     }
 
     // Verify ownership
-    if (workspace.ownerId !== userId) {
+    if (workspace.ownerId.toString() !== userId.toString()) {
       await session.abortTransaction();
       return sendErrorResponse(
         res,
@@ -446,7 +489,7 @@ export const updateWorkspaceLogo = async (req, res) => {
     }
 
     // Delete old logo if exists
-    let oldLogoPath = workspace.logo?.path || null;
+    const oldLogoPath = workspace.logo?.path || null;
 
     // Update logo
     workspace.logo = {
