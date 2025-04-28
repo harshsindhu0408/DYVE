@@ -1,12 +1,13 @@
+import { WorkspaceMember } from "../models/workspaceMember.model.js";
 import { eventBus } from "./rabbit.js";
 export const setupEventListeners = () => {
   console.log("All event listeners initialized");
-  // User profile updates
+
+  // Workspace member update changes
   eventBus.subscribe(
     "user_events",
-    "workspace_service_queue",
+    "workspace_service_events_queue", // Different from RPC queue
     "user.updated",
-    "user.deleted",
     async (data) => {
       try {
         const { userId, changes } = data;
@@ -23,17 +24,6 @@ export const setupEventListeners = () => {
       } catch (error) {
         console.error("Failed to process user update:", error);
       }
-    }
-  );
-
-  // Workspace member role changes
-  eventBus.subscribe(
-    "user_events",
-    "workspace_service_events_queue", // Different from RPC queue
-    "user.updated",
-    async (data) => {
-      // Sync role changes to channel service if needed
-      console.log("Role updated event received:", data);
     }
   );
 };

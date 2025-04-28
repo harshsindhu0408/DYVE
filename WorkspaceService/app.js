@@ -2,6 +2,7 @@ import dotenv from "dotenv";
 import express from "express";
 import connectDB from "./db/db.js";
 import workspaceRoutes from './routes/workspace.routes.js';
+import invitationRoutes from './routes/invitation.routes.js'
 import cookieParser from "cookie-parser";
 import fileUpload from "express-fileupload";
 import { setupUserEventListeners } from "./services/userCache.js";
@@ -28,5 +29,6 @@ app.use(cookieParser());
 
 
 app.use("/", workspaceRoutes);
+app.use("/", invitationRoutes);
 
 export default app;

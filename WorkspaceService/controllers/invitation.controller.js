@@ -12,9 +12,10 @@ import { verifyUserViaEventBus } from "../services/verifyUserViaEventBus.js";
 import { generateInviteEmail } from "../emailTemplates/inviteWorkspaceTemplate.js";
 import { sendEmail } from "../services/email.service.js";
 
+// teste
 export const inviteUserByEmail = async (req, res) => {
   try {
-    const { email, role = "member" } = req.body;
+    const { email, role = "guest" } = req.body;
     const { workspaceId } = req.params;
     const inviterId = req.user._id; // From JWT
 
@@ -65,7 +66,7 @@ export const inviteUserByEmail = async (req, res) => {
     // 3. Prevent inviting existing active members
     const existingMember = await WorkspaceMember.findOne({
       workspaceId,
-      email, // Or userId after lookup
+      email,
       status: "active",
     });
     if (existingMember) {
@@ -94,7 +95,7 @@ export const inviteUserByEmail = async (req, res) => {
     });
     await newInvite.save();
 
-    const acceptUrl = `${config.app.frontendUrl}/accept-invite?token=${inviteToken}`;
+    const acceptUrl = `${config.frontendUrl}/accept-invite/${workspace.name}?token=${inviteToken}`;
     const emailSubject = `You've been invited to join ${workspace.name} on DYVE`;
     const emailHtml = generateInviteEmail({
       workspaceName: workspace.name,
@@ -140,29 +141,27 @@ export const acceptInvite = async (req, res) => {
     }
 
     // 3. Check user existence (Redis cache first)
-    let userId = await redis.get(`user:email:${email}`);
+    let userId;
 
-    // 4. If not cached, verify via RabbitMQ
-    if (!userId) {
-      try {
-        userId = await verifyUserViaEventBus(email);
-        if (!userId) {
-          return sendErrorResponse(
-            res,
-            404,
-            "USER_NOT_FOUND",
-            "Please complete your registration before accepting the invite"
-          );
-        }
-      } catch (err) {
-        console.error("User verification failed:", err);
+    try {
+      userId = await verifyUserViaEventBus(email);
+      console.log("data inside the user idd -----", userId);
+      if (!userId) {
         return sendErrorResponse(
           res,
-          503,
-          "SERVICE_UNAVAILABLE",
-          "User verification service is temporarily unavailable"
+          404,
+          "USER_NOT_FOUND",
+          "Please complete your registration before accepting the invite"
         );
       }
+    } catch (err) {
+      console.error("User verification failed:", err);
+      return sendErrorResponse(
+        res,
+        503,
+        "SERVICE_UNAVAILABLE",
+        "User verification service is temporarily unavailable"
+      );
     }
 
     // 5. Create workspace membership
