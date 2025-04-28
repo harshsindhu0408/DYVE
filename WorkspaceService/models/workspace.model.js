@@ -43,7 +43,16 @@ const WorkspaceSchema = new mongoose.Schema(
     },
     logo: {
       path: { type: String },
-      url: { type: String }
+      url: { type: String },
+    },
+    allowPublicInvites: {
+      type: Boolean,
+      default: false,
+    },
+    publicInviteRoles: {
+      type: [String],
+      default: ["guest"],
+      enum: ["guest", "member"],
     },
   },
   { timestamps: true }
