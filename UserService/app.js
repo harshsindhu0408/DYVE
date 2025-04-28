@@ -8,13 +8,10 @@ import cookieParser from "cookie-parser";
 import fileUpload from "express-fileupload";
 import { setupUserVerification } from "./services/eventHandlers.js";
 import { eventBus } from "./services/rabbit.js";
-import {  startUserRpcHandler } from "./rpcHandlers/getUserInfo.js";
-
+import { startUserRpcHandler } from "./rpcHandlers/getUserInfo.js";
 
 const app = express();
-app.use(cors({
-  origin: '*',
-}));
+app.use(cors());
 connectDB();
 dotenv.config();
 await eventBus.connect();

@@ -2,15 +2,10 @@ import express from "express";
 import cors from "cors";
 import { createProxyMiddleware } from "http-proxy-middleware";
 import dotenv from "dotenv";
-
-const app = express();
 dotenv.config();
 
-app.use(
-  cors({
-    origin: "*",
-  })
-);
+const app = express();
+app.use(cors());
 
 // Proxy for User Service
 app.use(
