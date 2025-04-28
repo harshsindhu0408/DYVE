@@ -16,7 +16,6 @@ connectDB();
 dotenv.config();
 await eventBus.connect();
 console.log("RabbitMQ connection initialized in app.js");
-
 setupUserVerification();
 await startUserRpcHandler();
 
