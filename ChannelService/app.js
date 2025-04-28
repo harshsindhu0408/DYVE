@@ -1,7 +1,8 @@
 import dotenv from "dotenv";
 import express from "express";
 import connectDB from "./db/db.js";
-import invitationRoutes from "./routes/invitation.routes.js";
+import channelRoutes from "./routes/channel.routes.js";
+
 import cookieParser from "cookie-parser";
 import fileUpload from "express-fileupload";
 import { setupUserEventListeners } from "./services/userCache.js";
@@ -30,6 +31,6 @@ app.use(
   })
 );
 
-app.use("/", invitationRoutes);
+app.use("/", channelRoutes);
 
 export default app;

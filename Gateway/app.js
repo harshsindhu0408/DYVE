@@ -40,18 +40,18 @@ app.use(
   })
 );
 
-// app.use("/channel", createProxyMiddleware({
-//   target: process.env.BASE_CHANNEL,
-//   changeOrigin: true,
-//   onError: (err, req, res) => {
-//     console.error("Workspace Service Proxy error:", err);
-//     res.status(502).json({
-//       success: false,
-//       message: "Workspace service is currently unavailable",
-//     });
-//   },
-//   timeout: 5000, // 5 second timeout
-// }));
+app.use("/channel", createProxyMiddleware({
+  target: process.env.BASE_CHANNEL,
+  changeOrigin: true,
+  onError: (err, req, res) => {
+    console.error("Workspace Service Proxy error:", err);
+    res.status(502).json({
+      success: false,
+      message: "Workspace service is currently unavailable",
+    });
+  },
+  timeout: 5000, // 5 second timeout
+}));
 
 // Health check endpoint
 app.get("/health", (req, res) => {

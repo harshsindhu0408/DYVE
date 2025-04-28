@@ -1,5 +1,4 @@
 import amqplib from "amqplib";
-
 class EventBus {
   constructor() {
     this.connection = null;

@@ -1,5 +1,5 @@
-import ChannelMember from "../models/channelMembers.model";
-import { eventBus } from "./rabbit";
+import ChannelMember from "../models/channelMembers.model.js";
+import { eventBus } from "./rabbit.js";
 
 // Channel Service (event listener)
 export const setupEventListeners = () => {
