@@ -6,7 +6,7 @@ import userRoutes from "./routes/user.routes.js";
 import authRoutes from "./routes/auth.routes.js";
 import cookieParser from "cookie-parser";
 import fileUpload from "express-fileupload";
-import { setupUserVerification } from "./services/eventHandlers.js";
+import { setupUserEventHandlers } from "./services/eventHandlers.js";
 import { eventBus } from "./services/rabbit.js";
 import { startUserRpcHandler } from "./rpcHandlers/getUserInfo.js";
 
@@ -16,7 +16,7 @@ connectDB();
 dotenv.config();
 await eventBus.connect();
 console.log("RabbitMQ connection initialized in app.js");
-setupUserVerification();
+setupUserEventHandlers();
 await startUserRpcHandler();
 
 app.use(express.json());
