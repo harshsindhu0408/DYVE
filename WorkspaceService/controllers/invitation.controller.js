@@ -67,6 +67,14 @@ export const inviteUserByEmail = async (req, res) => {
 
     // 3. If generateLink = true, no need for email
     if (generateLink) {
+      if (!workspace.allowPublicInvites) {
+        return sendErrorResponse(
+          res,
+          403,
+          "PUBLIC_INVITES_DISABLED",
+          "This workspace doesn't accept public invites so please invite via email"
+        );
+      }
       const inviteToken = jwt.sign(
         { workspaceId, role, inviterId },
         config.jwt.invitationSecret,
