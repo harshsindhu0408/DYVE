@@ -1,114 +1,144 @@
 import { User } from "../models/user.model.js";
 import { eventBus } from "./rabbit.js";
 
-export const setupUserVerification = async () => {
-  console.log("Initializing user verification handler...");
+export const setupUserEventHandlers = async () => {
+  console.log("Initializing user event handlers...");
 
   try {
-    // Ensure we're connected before setting up subscriptions
     await eventBus.ensureConnection();
 
-    await eventBus.subscribe(
-      "user_queries",
-      "user_service",
-      "user.verify_request",
-      async ({ email, correlationId }) => {
-        // Added correlationId for tracing
-        try {
-          console.log(`Verification request received for email: ${email}`);
+    // Existing verification handler
+    await setupUserVerification();
 
-          const user = await User.findOne({ email }).select("_id").lean();
+    // New data request handler
+    await setupUserDataHandler();
 
-          const verificationResult = {
-            email,
-            userId: user?._id || null,
-            exists: !!user,
-            timestamp: new Date(),
-            correlationId,
-          };
-
-          console.log(`Verification result for ${email}:`, verificationResult);
-
-          // Retry logic for publishing
-          let attempts = 0;
-          const maxAttempts = 3;
-
-          while (attempts < maxAttempts) {
-            try {
-              await eventBus.publish(
-                "user_events",
-                "user.verified",
-                verificationResult,
-                { correlationId } // Pass correlationId to maintain context
-              );
-              console.log(`Verification published for ${email}`);
-              break;
-            } catch (publishError) {
-              attempts++;
-              console.error(
-                `Publish attempt ${attempts} failed for ${email}:`,
-                publishError
-              );
-
-              if (attempts >= maxAttempts) {
-                console.error(`Max publish attempts reached for ${email}`);
-                // Consider logging to a dead letter queue or database for later processing
-                await logFailedVerification(verificationResult, publishError);
-                throw publishError;
-              }
-
-              // Exponential backoff
-              await new Promise((resolve) =>
-                setTimeout(resolve, Math.pow(2, attempts) * 1000)
-              );
-            }
-          }
-        } catch (handlerError) {
-          console.error(
-            `Error processing verification for ${email}:`,
-            handlerError
-          );
-
-          // Publish error event if possible
-          try {
-            await eventBus.publish("user_errors", "user.verification_error", {
-              email,
-              error: handlerError.message,
-              timestamp: new Date(),
-              correlationId,
-            });
-          } catch (errorPublishError) {
-            console.error("Failed to publish error event:", errorPublishError);
-          }
-
-          // Re-throw to trigger nack if needed
-          throw handlerError;
-        }
-      }
-    );
-
-    console.log("✅ User verification handler ready");
+    console.log("✅ All user event handlers ready");
   } catch (initError) {
-    console.error(
-      "❌ Failed to initialize user verification handler:",
-      initError
-    );
-
-    // Implement retry logic for handler setup
-    setTimeout(() => {
-      console.log("Retrying verification handler setup...");
-      setupUserVerification();
-    }, 5000);
+    console.error("❌ Failed to initialize event handlers:", initError);
+    setTimeout(setupUserEventHandlers, 5000); // Retry
   }
 };
 
-// Optional: Store failed verifications for later processing
-async function logFailedVerification(data, error) {
+// Existing verification handler (moved to separate function)
+async function setupUserVerification() {
+  await eventBus.subscribe(
+    "user_queries",
+    "user_service",
+    "user.verify_request",
+    async ({ email, correlationId }) => {
+      try {
+        console.log(`Verification request received for email: ${email}`);
+
+        const user = await User.findOne({ email }).select("_id").lean();
+
+        const verificationResult = {
+          email,
+          userId: user?._id || null,
+          exists: !!user,
+          timestamp: new Date(),
+          correlationId,
+        };
+
+        console.log(`Verification result for ${email}:`, verificationResult);
+
+        await publishWithRetry(
+          "user_events",
+          "user.verified",
+          verificationResult,
+          { correlationId }
+        );
+      } catch (error) {
+        console.error(`Error processing verification for ${email}:`, error);
+        await handleHandlerError(error, { email, correlationId });
+        throw error;
+      }
+    }
+  );
+}
+
+// New data handler for sharing user data
+async function setupUserDataHandler() {
+  await eventBus.subscribe(
+    "user_queries",
+    "user_service_data",
+    "user.data.request",
+    async ({ userId, correlationId }) => {
+      try {
+        console.log(`Data request received for user: ${userId}`);
+
+        const user = await User.findById(userId).lean();
+        if (!user) {
+          console.warn(`User not found: ${userId}`);
+          return;
+        }
+
+        // Prepare minimal required user data
+        const userData = {
+          id: user._id,
+          name: user.profile.name,
+          email: user.email,
+          avatar: user.profile.avatar,
+          phone: user.profile.phone,
+          bio: user.profile.bio,
+          status: user.status,
+        };
+
+        
+
+        await publishWithRetry(
+          "user_events",
+          "user.data.response",
+          { userId, userData, correlationId },
+          { correlationId }
+        );
+      } catch (error) {
+        console.error(`Error processing data request for ${userId}:`, error);
+        await handleHandlerError(error, { userId, correlationId });
+        throw error;
+      }
+    }
+  );
+}
+
+// Shared utility functions
+async function publishWithRetry(
+  exchange,
+  routingKey,
+  message,
+  options = {},
+  maxAttempts = 3
+) {
+  let attempts = 0;
+  while (attempts < maxAttempts) {
+    try {
+      await eventBus.publish(exchange, routingKey, message, options);
+      return;
+    } catch (error) {
+      attempts++;
+      console.error(`Publish attempt ${attempts} failed:`, error);
+
+      if (attempts >= maxAttempts) {
+        console.error("Max publish attempts reached");
+        throw error;
+      }
+
+      await new Promise((resolve) =>
+        setTimeout(resolve, Math.pow(2, attempts) * 1000)
+      );
+    }
+  }
+}
+
+async function handleHandlerError(error, context) {
   try {
-    // Implement your logging mechanism here
-    // Could be a database collection, file log, or external service
-    console.error("Storing failed verification:", { data, error });
-  } catch (logError) {
-    console.error("Failed to log failed verification:", logError);
+    await eventBus.publish("user_errors", "user.handler_error", {
+      ...context,
+      error: error.message,
+      stack: error.stack,
+      timestamp: new Date(),
+    });
+  } catch (publishError) {
+    console.error("Failed to publish error event:", publishError);
   }
 }
