@@ -4,19 +4,18 @@ const InviteSchema = new mongoose.Schema(
   {
     email: {
       type: String,
-      required: true,
       lowercase: true,
       trim: true,
     },
     workspaceId: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: 'Workspace',
+      ref: "Workspace",
       required: true,
     },
     role: {
       type: String,
-      enum: ['admin', 'member', 'guest'],
-      default: 'member',
+      enum: ["admin", "member", "guest"],
+      default: "member",
     },
     token: {
       type: String,
@@ -34,8 +33,12 @@ const InviteSchema = new mongoose.Schema(
     },
     status: {
       type: String,
-      enum: ['pending', 'accepted', 'expired', 'revoked'],
-      default: 'pending',
+      enum: ["pending", "accepted", "expired", "revoked"],
+      default: "pending",
+    },
+    isPublicLink: {
+      type: Boolean,
+      default: false,
     },
   },
   { timestamps: true }
@@ -43,4 +46,4 @@ const InviteSchema = new mongoose.Schema(
 
 // Compound index for faster lookup
 InviteSchema.index({ email: 1, workspaceId: 1 });
-export const Invite = mongoose.model('Invite', InviteSchema);
+export const Invite = mongoose.model("Invite", InviteSchema);

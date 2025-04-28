@@ -9,8 +9,21 @@ import { userAuthMiddlewareForWorkspace } from "../middlewares/authMiddleWare.js
 
 const router = express.Router();
 
-router.post("/invite/:workspaceId", userAuthMiddlewareForWorkspace, inviteUserByEmail);
-router.post("/accept", userAuthMiddlewareForWorkspace, acceptInvite);
+router.post(
+  "/invite/:workspaceId",
+  userAuthMiddlewareForWorkspace,
+  inviteUserByEmail
+);
+router.post(
+  "/:slug/accept-public-invite",
+  userAuthMiddlewareForWorkspace,
+  acceptInvite
+);
+router.post(
+  "/accept-invite",
+  userAuthMiddlewareForWorkspace,
+  acceptInvite
+);
 router.patch("/profile", userAuthMiddlewareForWorkspace, revokeInvite);
 router.get("/invite", userAuthMiddlewareForWorkspace, listInvites);
 

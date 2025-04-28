@@ -94,6 +94,12 @@ const userSchema = new mongoose.Schema(
       type: Number,
       default: 0,
     },
+    loginOTP: {
+      type: Number,
+    },
+    loginOTPExpires: {
+      type: Date,
+    },
   },
   {
     timestamps: true,
