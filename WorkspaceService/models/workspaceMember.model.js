@@ -28,6 +28,7 @@ const WorkspaceMemberSchema = new mongoose.Schema(
       name: { type: String, required: true },
       avatar: String,
       status: String,
+      bio: String,
     },
     role: {
       type: String,

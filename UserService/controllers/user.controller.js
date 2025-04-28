@@ -155,6 +155,7 @@ export async function updateUserProfile(req, res) {
           name: updatedUser.profile.name,
           avatar: updatedUser.profile.avatar,
           status: updatedUser.status,
+          bio: updatedUser.profile.bio,
         },
       });
     } catch (e) {

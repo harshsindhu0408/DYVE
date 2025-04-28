@@ -10,6 +10,8 @@ import {
 import { verifyUserViaEventBus } from "../services/verifyUserViaEventBus.js";
 import { generateInviteEmail } from "../emailTemplates/inviteWorkspaceTemplate.js";
 import { sendEmail } from "../services/email.service.js";
+import { requestUserData } from "../services/userAccess.js";
+import { eventBus } from "../services/rabbit.js";
 
 // tested
 export const inviteUserByEmail = async (req, res) => {
@@ -65,6 +67,14 @@ export const inviteUserByEmail = async (req, res) => {
 
     // 3. If generateLink = true, no need for email
     if (generateLink) {
+      if (!workspace.allowPublicInvites) {
+        return sendErrorResponse(
+          res,
+          403,
+          "PUBLIC_INVITES_DISABLED",
+          "This workspace doesn't accept public invites so please invite via email"
+        );
+      }
       const inviteToken = jwt.sign(
         { workspaceId, role, inviterId },
         config.jwt.invitationSecret,
@@ -165,15 +175,20 @@ export const acceptInvite = async (req, res) => {
     const { token } = req.body;
     const { slug } = req.params;
     const isPublicInvite = !!slug; // Determine if this is a public invite
+    console.log("public or email wal ---", isPublicInvite);
+    const userDataService = await requestUserData(req.user._id);
+    console.log("user ka data aagaya bhai ---", userDataService);
 
     // Verify and decode JWT token
     const decoded = jwt.verify(token, config.jwt.invitationSecret);
+    console.log("decoded data hai ye", decoded);
     const { email, workspaceId, role, inviterId } = decoded;
 
     // For public invites, validate workspace slug matches
     let workspace;
     if (isPublicInvite) {
       workspace = await Workspace.findOne({ slug, isDeleted: false });
+      console.log("workspace mil gaya ----", workspace);
       if (!workspace) {
         return sendErrorResponse(
           res,
@@ -279,6 +294,13 @@ export const acceptInvite = async (req, res) => {
       invitedBy: inviterId || invite.invitedBy,
       status: "active",
       joinedVia: isPublicInvite ? "public_link" : "email_invite",
+      userDisplay: {
+        name: userDataService.name,
+        bio: userDataService.bio,
+        avatar: userDataService.avatar,
+        status: userDataService.status,
+      },
+      email: userDataService.email,
     });
 
     // Update invite status
