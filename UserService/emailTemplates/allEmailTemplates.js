@@ -83,7 +83,6 @@ export function generateForgotPasswordEmail(otp) {
     `;
 }
 
-
 export function generatePasswordResetConfirmationEmail(location) {
   return `
   <!DOCTYPE html>
@@ -166,6 +165,28 @@ export function generatePasswordResetConfirmationEmail(location) {
       </div>
     </body>
   </html>
-  `
+  `;
 }
 
+export function generateLoginOTPEmail(otp) {
+  return `
+    <div style="font-family: 'Helvetica Neue', Arial, sans-serif; background: #f9f9f9; padding: 40px 20px; min-height: 100vh; display: flex; justify-content: center; align-items: center;">
+      <div style="background: #ffffff; border-radius: 12px; box-shadow: 0 8px 24px rgba(0,0,0,0.1); padding: 40px 30px; max-width: 500px; width: 100%;">
+        <div style="background: linear-gradient(135deg, #6C63FF, #48A9FE); border-radius: 10px 10px 0 0; padding: 20px; text-align: center;">
+          <h2 style="margin: 0; color: #ffffff; font-size: 26px;">🔒 Secure Login OTP</h2>
+        </div>
+        <div style="padding: 30px 20px; text-align: center;">
+          <p style="font-size: 18px; color: #333; margin-bottom: 10px;">Your one-time password (OTP) is:</p>
+          <div style="background: #f0f4ff; padding: 15px 20px; border-radius: 8px; font-size: 32px; font-weight: bold; color: #3f51b5; letter-spacing: 4px; display: inline-block; margin: 20px 0;">
+            ${otp}
+          </div>
+          <p style="font-size: 14px; color: #666; margin-top: 20px;">This OTP is valid for <strong>10 minutes</strong>. Please do not share it with anyone.</p>
+          <p style="font-size: 14px; color: #999; margin-top: 10px;">If you didn't request this OTP, please ignore this email.</p>
+        </div>
+        <div style="border-top: 1px solid #eee; margin-top: 30px; padding-top: 20px; text-align: center;">
+          <p style="font-size: 12px; color: #aaa;">Best regards,<br><strong>DYVE | CHAT</strong></p>
+        </div>
+      </div>
+    </div>
+  `;
+}
