@@ -22,7 +22,7 @@ export const inviteUserByEmail = async (req, res) => {
       isDeleted: false,
     });
     if (!workspace) {
-      return sendErrorResponse, sendSuccessResponse(
+      return sendErrorResponse(
         res,
         404,
         "WORKSPACE_NOT_FOUND",
