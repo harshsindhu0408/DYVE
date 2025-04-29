@@ -8,6 +8,12 @@ const channelSchema = new mongoose.Schema(
       required: [true, "Workspace ID is required"],
       index: true,
     },
+    channelId: {
+      type: String,
+      required: [true, "Channel ID is required"],
+      unique: true,
+      index: true,
+    },
     name: {
       type: String,
       required: [true, "Channel name is required"],

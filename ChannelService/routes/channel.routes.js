@@ -13,7 +13,7 @@ import {
 
 const router = express.Router();
 
-router.post("/", createChannel);  //create
+router.post("/createchannel", createChannel);  //create
 
 router.put("/:channelId", updateChannel); //update
 

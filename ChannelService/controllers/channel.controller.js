@@ -8,6 +8,7 @@ export const createChannel = async (req, res) => {
   try {
     const {
       workspaceId,
+      channelId,
       name,
       description,
       type,
@@ -38,6 +39,7 @@ export const createChannel = async (req, res) => {
     // Step 2: Construct channel payload
     const channelData = {
       workspaceId,
+      channelId,
       name,
       description,
       type,
@@ -474,7 +476,8 @@ export const deleteChannel = async (req, res) => {
       );
     }
 
-    const deletedChannel = await Channel.findByIdAndDelete(channelId);
+    const deletedChannel = await Channel.findOneAndDelete({ channelId });
+
     if (!deletedChannel) {
       return sendErrorResponse(
         res,
