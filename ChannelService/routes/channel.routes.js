@@ -13,11 +13,11 @@ import {
 
 const router = express.Router();
 
-router.post("/createchannel", createChannel);  //create
+router.post("/createchannel", createChannel); //create
 
 router.put("/:channelId", updateChannel); //update
 
-router.get("/:channelId", getChannelById);  // get channel by id
+router.get("/:channelId", getChannelById); // get channel by id
 
 router.get("/workspace/:workspaceId", getChannelsByWorkspaceId); // get all channels in a workspace by id
 

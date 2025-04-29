@@ -10,7 +10,7 @@ import dotenv from "dotenv";
 import { checkAdminPermission } from "../rpcHandlers/verifyUserRole.service.js";
 dotenv.config();
 
-export const userAuthMiddlewareForWorkspace = async (req, res, next) => {
+export const userAuthMiddlewareForChannel = async (req, res, next) => {
   try {
     // Check for Authorization header
     const authHeader = req.headers.authorization;
