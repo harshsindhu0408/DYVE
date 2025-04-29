@@ -1,2 +1,2 @@
-user - https://dyve-sigma.vercel.app/
+user - https://dyve-sigma.vercel.app
 workspace - https://dyve-workspace.vercel.app
