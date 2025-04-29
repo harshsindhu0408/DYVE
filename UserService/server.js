@@ -15,6 +15,10 @@ app.get("/health", (req, res) => {
   res.status(200).json({ status: "User service healthy" });
 });
 
+app.get("/", (req, res) => {
+  res.status(200).json({ status: "User service running" });
+});
+
 // Handle unhandled promise rejections
 process.on("unhandledRejection", (err) => {
   console.error("Unhandled Rejection:", err);

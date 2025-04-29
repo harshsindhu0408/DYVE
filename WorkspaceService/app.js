@@ -9,6 +9,7 @@ import { setupUserEventListeners } from "./services/userCache.js";
 import { eventBus } from "./services/rabbit.js";
 import { setupEventListeners } from "./services/eventHandlers.js";
 import { startConsumer } from "./rpcHandlers/index.js";
+import workspaceMemberRoutes from "./routes/workspaceMember.routes.js";
 import cors from "cors";
 
 dotenv.config();
@@ -26,5 +27,6 @@ app.use(cookieParser());
 
 app.use("/", workspaceRoutes);
 app.use("/", invitationRoutes);
+app.use("/", workspaceMemberRoutes);
 
 export default app;

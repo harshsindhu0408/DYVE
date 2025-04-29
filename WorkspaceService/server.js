@@ -11,6 +11,9 @@ server.on("error", (error) => {
   console.error("Server error:", error);
 });
 
+app.get("/", (req, res) => {
+  res.status(200).json({ status: "Workspace service running" });
+});
 app.get("/health", (req, res) => {
   res.status(200).json({ status: "Workspace service healthy" });
 });

@@ -3,15 +3,14 @@ import { Workspace } from "../models/workspace.model.js";
 import { WorkspaceMember } from "../models/workspaceMember.model.js";
 import jwt from "jsonwebtoken";
 import { config } from "../config/config.js";
-import {
-  sendSuccessResponse,
-  sendErrorResponse,
-} from "../utils/responseUtils.js";
-import { verifyUserViaEventBus } from "../services/verifyUserViaEventBus.js";
 import { generateInviteEmail } from "../emailTemplates/inviteWorkspaceTemplate.js";
 import { sendEmail } from "../services/email.service.js";
 import { requestUserData } from "../services/userAccess.js";
 import { eventBus } from "../services/rabbit.js";
+import {
+  sendErrorResponse,
+  sendSuccessResponse,
+} from "../Utils/responseUtils.js";
 
 // tested
 export const inviteUserByEmail = async (req, res) => {
@@ -174,21 +173,19 @@ export const acceptInvite = async (req, res) => {
   try {
     const { token } = req.body;
     const { slug } = req.params;
-    const isPublicInvite = !!slug; // Determine if this is a public invite
-    console.log("public or email wal ---", isPublicInvite);
-    const userDataService = await requestUserData(req.user._id);
-    console.log("user ka data aagaya bhai ---", userDataService);
+    
+    // The key fix is here - we determine if it's a public invite ONLY if slug is provided
+    // Email invites should never be considered public, regardless of the presence of slug
+    const isPublicInvite = slug ? true : false;
 
     // Verify and decode JWT token
     const decoded = jwt.verify(token, config.jwt.invitationSecret);
-    console.log("decoded data hai ye", decoded);
-    const { email, workspaceId, role, inviterId } = decoded;
+    const { email, workspaceId, role, inviterId, isPublicLink } = decoded;
 
     // For public invites, validate workspace slug matches
     let workspace;
     if (isPublicInvite) {
       workspace = await Workspace.findOne({ slug, isDeleted: false });
-      console.log("workspace mil gaya ----", workspace);
       if (!workspace) {
         return sendErrorResponse(
           res,
@@ -215,59 +212,25 @@ export const acceptInvite = async (req, res) => {
       }
     }
 
-    // Validate invite exists and is pending
-    const inviteQuery = isPublicInvite
-      ? {
-          token,
-          workspaceId,
-          status: "pending",
-          expiresAt: { $gt: new Date() },
-        }
-      : {
-          token,
-          email,
-          workspaceId,
-          status: "pending",
-          expiresAt: { $gt: new Date() },
-        };
-
-    const invite = await Invite.findOne(inviteQuery);
-    if (!invite) {
-      return sendErrorResponse(
-        res,
-        400,
-        "INVALID_INVITE",
-        "Invalid or expired invitation"
+    // Handle authentication - user must be logged in
+    if (!req.user) {
+      return res.redirect(
+        `${config.frontendUrl}/signup?inviteToken=${token}&workspaceSlug=${slug}`
       );
     }
+    const userId = req.user._id;
 
-    // Handle authentication
-    let userId;
-    if (isPublicInvite) {
-      if (!req.user) {
-        return res.redirect(
-          `${config.frontendUrl}/signup?inviteToken=${token}&workspaceSlug=${slug}`
-        );
-      }
-      userId = req.user._id;
-    } else {
-      try {
-        userId = await verifyUserViaEventBus(email);
-        if (!userId) {
-          return sendErrorResponse(
-            res,
-            404,
-            "USER_NOT_FOUND",
-            "Please complete your registration before accepting the invite"
-          );
-        }
-      } catch (err) {
-        console.error("User verification failed:", err);
+    // Fetch user data once
+    const userDataService = await requestUserData(userId);
+
+    // For email invites (non-public), verify the user's email matches
+    if (!isPublicInvite && !isPublicLink) {
+      if (userDataService?.email?.toLowerCase() !== email.toLowerCase()) {
         return sendErrorResponse(
           res,
-          503,
-          "SERVICE_UNAVAILABLE",
-          "User verification service is temporarily unavailable"
+          403,
+          "INVALID_EMAIL",
+          "You can only accept invites sent to your email address"
         );
       }
     }
@@ -286,12 +249,33 @@ export const acceptInvite = async (req, res) => {
       );
     }
 
+    // For email invites, validate the specific invite exists
+    if (!isPublicInvite && !isPublicLink) {
+      const invite = await Invite.findOne({
+        token,
+        email,
+        workspaceId,
+        status: "pending",
+        expiresAt: { $gt: new Date() },
+      });
+      if (!invite) {
+        return sendErrorResponse(
+          res,
+          400,
+          "INVALID_INVITE",
+          "Invalid or expired invitation"
+        );
+      }
+      // Mark email invite as used
+      await Invite.updateOne({ _id: invite._id }, { status: "accepted" });
+    }
+
     // Create workspace membership
     const membership = await WorkspaceMember.create({
       userId,
       workspaceId,
-      role,
-      invitedBy: inviterId || invite.invitedBy,
+      role: isPublicInvite || isPublicLink ? workspace?.defaultRole || "member" : role,
+      invitedBy: inviterId,
       status: "active",
       joinedVia: isPublicInvite ? "public_link" : "email_invite",
       userDisplay: {
@@ -302,15 +286,6 @@ export const acceptInvite = async (req, res) => {
       },
       email: userDataService.email,
     });
-
-    // Update invite status
-    await Invite.updateOne(
-      { _id: invite._id },
-      {
-        status: "accepted",
-        ...(isPublicInvite && { acceptedBy: userId }),
-      }
-    );
 
     // Emit real-time event
     await eventBus.publish("workspace_events", "workspace.member_joined", {
@@ -326,7 +301,7 @@ export const acceptInvite = async (req, res) => {
       "Successfully joined workspace",
       {
         workspaceId,
-        ...(isPublicInvite && { workspaceSlug: slug }),
+        ...((isPublicInvite || isPublicLink) && { workspaceSlug: slug }),
         membershipId: membership._id,
       }
     );
