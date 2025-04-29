@@ -3,14 +3,11 @@ import { Workspace } from "../models/workspace.model.js";
 import { WorkspaceMember } from "../models/workspaceMember.model.js";
 import jwt from "jsonwebtoken";
 import { config } from "../config/config.js";
-import {
-  sendSuccessResponse,
-  sendErrorResponse,
-} from "../utils/responseUtils.js";
 import { generateInviteEmail } from "../emailTemplates/inviteWorkspaceTemplate.js";
 import { sendEmail } from "../services/email.service.js";
 import { requestUserData } from "../services/userAccess.js";
 import { eventBus } from "../services/rabbit.js";
+import { sendErrorResponse, sendSuccessResponse } from "../utils/responseUtils.js";
 
 // tested
 export const inviteUserByEmail = async (req, res) => {
@@ -25,7 +22,7 @@ export const inviteUserByEmail = async (req, res) => {
       isDeleted: false,
     });
     if (!workspace) {
-      return sendErrorResponse(
+      return sendErrorResponse, sendSuccessResponse(
         res,
         404,
         "WORKSPACE_NOT_FOUND",
