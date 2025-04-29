@@ -3,7 +3,10 @@ import mongoose from "mongoose";
 import { WorkspaceMember } from "../models/workspaceMember.model.js";
 import { eventBus } from "../services/rabbit.js";
 import fs from "fs";
-import { sendErrorResponse, sendSuccessResponse } from "../utils/responseUtils.js";
+import {
+  sendErrorResponse,
+  sendSuccessResponse,
+} from "../Utils/responseUtils.js";
 
 const validateOwnership = async (workspaceId, userId) => {
   const workspace = await Workspace.findOne({
@@ -186,7 +189,7 @@ export const updateWorkspace = async (req, res) => {
     const { name, description } = req.body;
     const userId = req.user._id;
 
-    if(name.length > 50) {
+    if (name.length > 50) {
       await session.abortTransaction();
       return sendErrorResponse(
         res,
@@ -195,7 +198,6 @@ export const updateWorkspace = async (req, res) => {
         "You can only choose workspace name with 50 characters"
       );
     }
-
 
     // Find workspace
     const workspace = await Workspace.findOne({ slug }).session(session);
@@ -237,7 +239,6 @@ export const updateWorkspace = async (req, res) => {
     );
 
     await session.commitTransaction();
-
 
     // Emit update event
     await eventBus.publish("workspace_events", "workspace.updated", {

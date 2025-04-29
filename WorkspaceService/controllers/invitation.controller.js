@@ -7,7 +7,10 @@ import { generateInviteEmail } from "../emailTemplates/inviteWorkspaceTemplate.j
 import { sendEmail } from "../services/email.service.js";
 import { requestUserData } from "../services/userAccess.js";
 import { eventBus } from "../services/rabbit.js";
-import { sendErrorResponse, sendSuccessResponse } from "../utils/responseUtils.js";
+import {
+  sendErrorResponse,
+  sendSuccessResponse,
+} from "../Utils/responseUtils.js";
 
 // tested
 export const inviteUserByEmail = async (req, res) => {

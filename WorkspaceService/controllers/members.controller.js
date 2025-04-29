@@ -1,5 +1,8 @@
 import { handleUpdateMemberRole } from "../rpcHandlers/workspaceRpcHandlers.js";
-import { sendErrorResponse, sendSuccessResponse } from "../utils/responseUtils.js";
+import {
+  sendErrorResponse,
+  sendSuccessResponse,
+} from "../Utils/responseUtils.js";
 import mongoose from "mongoose";
 import { eventBus } from "../services/rabbit.js";
 
