@@ -11,6 +11,10 @@ server.on("error", (error) => {
   console.error("Server error:", error);
 });
 
+app.get("/", (req, res) => {
+  res.status(200).json({ status: "Channel service running" });
+});
+
 app.get("/health", (req, res) => {
   res.status(200).json({ status: "Channel service healthy" });
 });

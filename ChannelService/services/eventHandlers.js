@@ -1,42 +1,73 @@
-import ChannelMember from "../models/channelMembers.model";
-import { eventBus } from "./rabbit";
 
-// Channel Service (event listener)
+import ChannelMember from "../models/channelMembers.model.js";
+import { eventBus } from "./rabbit.js";
+import redis from "./redis.js";
+
 export const setupEventListeners = () => {
-  // user updated event
-  eventBus.subscribe("user:updated", async (message) => {
-    const { userId, changes } = message;
 
-    // Update ChannelMember documents
-    await ChannelMember.updateMany(
-      { userId },
-      {
-        $set: {
-          "userDisplay.name": changes.name,
-          "userDisplay.avatar": changes.avatar,
-          "userDisplay.status": changes.status,
-        },
+  // Existing workspace member update handler
+  eventBus.subscribe(
+    "user_events",
+    "workspace_service_events_queue",
+    "user.updated",
+    async (data) => {
+      try {
+        const { userId, changes } = data;
+        await updateChannelMembers(userId, changes);
+
+        // Update Redis cache
+        const userKey = `user:${userId}`;
+        const cachedUser = await redis.get(userKey);
+        if (cachedUser) {
+          const userData = JSON.parse(cachedUser);
+          await redis.set(
+            userKey,
+            JSON.stringify({ ...userData, ...changes }),
+            "EX",
+            86400 // 24h TTL
+          );
+        }
+      } catch (error) {
+        console.error("Failed to process user update:", error);
       }
-    );
+    }
+  );
 
-    // Emit WebSocket events to notify active channel members
-    const channels = await ChannelMember.distinct("channelId", { userId });
-    channels.forEach((channelId) => {
-      wsServer.emit(`channel:${channelId}:member_updated`, { userId, changes });
-    });
-  });
+  // New handler for user data responses
+  eventBus.subscribe(
+    "user_events",
+    "workspace_service_data_queue",
+    "user.data.response",
+    async (message) => {
+      try {
+        if (message.userId && message.userData) {
+          // Cache the user data
+          await redis.set(
+            `user:${message.userId}`,
+            JSON.stringify(message.userData),
+            "EX",
+            86400 // 24h TTL
+          );
+        }
+      } catch (error) {
+        console.error("Failed to cache user data:", error);
+      }
+    }
+  );
 
-  // user deleted event
-  eventBus.subscribe("user:deleted", async (message) => {
-    const { userId } = message;
-
-    // Delete ChannelMember documents
-    await ChannelMember.deleteMany({ userId });
-
-    // Emit WebSocket events to notify active channel members
-    const channels = await ChannelMember.distinct("channelId", { userId });
-    channels.forEach((channelId) => {
-      wsServer.emit(`channel:${channelId}:member_deleted`, { userId });
-    });
-  });
+  console.log("✅ User data event listeners ready");
 };
+
+async function updateChannelMembers(userId, changes) {
+  await ChannelMember.updateMany(
+    { userId },
+    {
+      $set: {
+        "userDisplay.name": changes.name,
+        "userDisplay.avatar": changes.avatar,
+        "userDisplay.status": changes.status,
+        "userDisplay.bio": changes.bio,
+      },
+    }
+  );
+}

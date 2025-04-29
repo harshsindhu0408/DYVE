@@ -10,13 +10,25 @@ const channelMemberSchema = new mongoose.Schema(
     },
     userId: {
       type: String,
-      required: true,
+      required: [true, "Owner ID is required"],
       index: true,
+      validate: {
+        validator: function (v) {
+          return (
+            /^[a-f\d]{24}$/i.test(v) ||
+            /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+              v
+            )
+          );
+        },
+        message: (props) => `${props.value} is not a valid User ID format!`,
+      },
     },
     userDisplay: {
       name: { type: String, required: true },
       avatar: String,
       status: String,
+      bio: String,
     },
     role: {
       type: String,
