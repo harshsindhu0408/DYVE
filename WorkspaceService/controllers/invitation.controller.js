@@ -7,7 +7,6 @@ import {
   sendSuccessResponse,
   sendErrorResponse,
 } from "../utils/responseUtils.js";
-import { verifyUserViaEventBus } from "../services/verifyUserViaEventBus.js";
 import { generateInviteEmail } from "../emailTemplates/inviteWorkspaceTemplate.js";
 import { sendEmail } from "../services/email.service.js";
 import { requestUserData } from "../services/userAccess.js";
