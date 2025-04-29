@@ -173,12 +173,14 @@ export const acceptInvite = async (req, res) => {
   try {
     const { token } = req.body;
     const { slug } = req.params;
-    const isPublicInvite = !!slug; // Determine if this is a public invite
+    
+    // The key fix is here - we determine if it's a public invite ONLY if slug is provided
+    // Email invites should never be considered public, regardless of the presence of slug
+    const isPublicInvite = slug ? true : false;
 
     // Verify and decode JWT token
     const decoded = jwt.verify(token, config.jwt.invitationSecret);
-    const { email, workspaceId, role, inviterId } = decoded;
-    console.log("ye hai decoded data -----", decoded);
+    const { email, workspaceId, role, inviterId, isPublicLink } = decoded;
 
     // For public invites, validate workspace slug matches
     let workspace;
@@ -211,7 +213,6 @@ export const acceptInvite = async (req, res) => {
     }
 
     // Handle authentication - user must be logged in
-    // Handle authentication - user must be logged in
     if (!req.user) {
       return res.redirect(
         `${config.frontendUrl}/signup?inviteToken=${token}&workspaceSlug=${slug}`
@@ -223,7 +224,7 @@ export const acceptInvite = async (req, res) => {
     const userDataService = await requestUserData(userId);
 
     // For email invites (non-public), verify the user's email matches
-    if (!isPublicInvite) {
+    if (!isPublicInvite && !isPublicLink) {
       if (userDataService?.email?.toLowerCase() !== email.toLowerCase()) {
         return sendErrorResponse(
           res,
@@ -249,7 +250,7 @@ export const acceptInvite = async (req, res) => {
     }
 
     // For email invites, validate the specific invite exists
-    if (!isPublicInvite) {
+    if (!isPublicInvite && !isPublicLink) {
       const invite = await Invite.findOne({
         token,
         email,
@@ -273,7 +274,7 @@ export const acceptInvite = async (req, res) => {
     const membership = await WorkspaceMember.create({
       userId,
       workspaceId,
-      role: isPublicInvite ? workspace.defaultRole || "member" : role, // Use default role for public invites
+      role: isPublicInvite || isPublicLink ? workspace?.defaultRole || "member" : role,
       invitedBy: inviterId,
       status: "active",
       joinedVia: isPublicInvite ? "public_link" : "email_invite",
@@ -300,7 +301,7 @@ export const acceptInvite = async (req, res) => {
       "Successfully joined workspace",
       {
         workspaceId,
-        ...(isPublicInvite && { workspaceSlug: slug }),
+        ...((isPublicInvite || isPublicLink) && { workspaceSlug: slug }),
         membershipId: membership._id,
       }
     );

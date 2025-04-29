@@ -59,7 +59,7 @@ app.get("/health", (req, res) => {
 });
 
 app.get("/", (req, res) => {
-  res.status(200).json({ status: "Server working healthy" });
+  res.status(200).json({ status: "Gateway server is up" });
 });
 
 app.listen(3000, () => {
