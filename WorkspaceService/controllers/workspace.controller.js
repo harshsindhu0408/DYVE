@@ -1,16 +1,9 @@
 import { Workspace } from "../models/workspace.model.js";
 import mongoose from "mongoose";
 import { WorkspaceMember } from "../models/workspaceMember.model.js";
-import {
-  sendSuccessResponse,
-  sendErrorResponse,
-} from "../utils/responseUtils.js";
 import { eventBus } from "../services/rabbit.js";
-import {
-  handleFileUpload,
-  workspaceLogoUpload,
-} from "../services/fileUpload.service.js";
 import fs from "fs";
+import { sendErrorResponse, sendSuccessResponse } from "../utils/responseUtils.js";
 
 const validateOwnership = async (workspaceId, userId) => {
   const workspace = await Workspace.findOne({
