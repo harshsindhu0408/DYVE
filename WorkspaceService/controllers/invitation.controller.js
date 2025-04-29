@@ -17,7 +17,7 @@ export const inviteUserByEmail = async (req, res) => {
   try {
     const { email, role = "guest", generateLink = false } = req.body;
     const { workspaceId } = req.params;
-    const inviterId = req.user._id; // From JWT
+    const inviterId = req.user._id;
 
     // 1. Validate Workspace Exists
     const workspace = await Workspace.findOne({
@@ -33,7 +33,7 @@ export const inviteUserByEmail = async (req, res) => {
       );
     }
 
-    // 2. Check Inviter's Role
+    // 2. Check Inviter's Role (same as before)
     const inviterMembership = await WorkspaceMember.findOne({
       workspaceId,
       userId: inviterId,
@@ -64,18 +64,19 @@ export const inviteUserByEmail = async (req, res) => {
       );
     }
 
-    // 3. If generateLink = true, no need for email
+    // 3. Handle generateLink case (same as before)
     if (generateLink) {
       if (!workspace.allowPublicInvites) {
         return sendErrorResponse(
           res,
           403,
           "PUBLIC_INVITES_DISABLED",
-          "This workspace doesn't accept public invites so please invite via email"
+          "This workspace doesn't accept public invites"
         );
       }
+
       const inviteToken = jwt.sign(
-        { workspaceId, role, inviterId },
+        { workspaceId, role, inviterId, isPublicLink: true },
         config.jwt.invitationSecret,
         { expiresIn: "7d" }
       );
@@ -91,7 +92,6 @@ export const inviteUserByEmail = async (req, res) => {
       await newInvite.save();
 
       const inviteLink = `${config.frontendUrl}/${workspace.slug}/accept-public-invite?token=${inviteToken}`;
-
       return sendSuccessResponse(
         res,
         201,
@@ -101,86 +101,150 @@ export const inviteUserByEmail = async (req, res) => {
       );
     }
 
-    // 4. If generateLink = false, email(s) are required
+    // 4. Validate email(s)
     if (!email || (Array.isArray(email) && email.length === 0)) {
       return sendErrorResponse(
         res,
         400,
         "EMAIL_REQUIRED",
-        "Email address(es) are required to send invite(s)"
+        "Email address(es) are required"
       );
     }
 
-    // 5. Normalize email to array
-    const emailArray = Array.isArray(email) ? email : [email];
+    // 5. Normalize emails
+    const emailArray = Array.isArray(email)
+      ? email
+      : typeof email === "string"
+      ? email.split(",").map((e) => e.trim())
+      : [];
 
-    // 6. Invite each email individually
-    for (const singleEmail of emailArray) {
-      // 6a. Prevent inviting existing active members
-      const existingMember = await WorkspaceMember.findOne({
-        workspaceId,
-        email: singleEmail,
-        status: "active",
-      });
-      if (existingMember) {
-        continue; // Skip if already member
+    // 6. Prepare all invites concurrently
+    const invitePromises = emailArray.map(async (singleEmail) => {
+      try {
+        // Check existing member
+        const existingMember = await WorkspaceMember.findOne({
+          workspaceId,
+          email: singleEmail,
+          status: "active",
+        });
+        if (existingMember) {
+          return {
+            email: singleEmail,
+            status: "skipped",
+            reason: "already_member",
+          };
+        }
+
+        // Check existing invite
+        const existingInvite = await Invite.findOne({
+          email: singleEmail,
+          workspaceId,
+          status: "pending",
+          expiresAt: { $gt: new Date() },
+        });
+        if (existingInvite) {
+          return {
+            email: singleEmail,
+            status: "skipped",
+            reason: "pending_invite_exists",
+          };
+        }
+
+        // Create new invite
+        const inviteToken = jwt.sign(
+          {
+            email: singleEmail,
+            workspaceId,
+            role,
+            inviterId,
+            isPublicLink: false,
+          },
+          config.jwt.invitationSecret,
+          { expiresIn: "7d" }
+        );
+
+        const newInvite = new Invite({
+          email: singleEmail,
+          workspaceId,
+          role,
+          token: inviteToken,
+          invitedBy: inviterId,
+          expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+          isPublicLink: false,
+        });
+        await newInvite.save();
+
+        // Prepare email
+        const acceptUrl = `${config.frontendUrl}/accept-invite?token=${inviteToken}`;
+        const emailSubject = `You've been invited to join ${workspace.name} on DYVE`;
+        const emailHtml = generateInviteEmail({
+          workspaceName: workspace.name,
+          inviterName: req.user.profile.name,
+          inviterAvatar: req.user.profile.avatar,
+          role,
+          acceptUrl,
+          expiryDays: 7,
+        });
+
+        // Send email (fire and forget)
+        await sendEmail(singleEmail, emailSubject, emailHtml);
+        return { email: singleEmail, status: "sent" };
+      } catch (error) {
+        console.error(`Error processing invite for ${singleEmail}:`, error);
+        return { email: singleEmail, status: "failed", error: error.message };
       }
+    });
 
-      const inviteToken = jwt.sign(
-        { email: singleEmail, workspaceId, role, inviterId },
-        config.jwt.invitationSecret,
-        { expiresIn: "7d" }
-      );
+    // Process all invites concurrently
+    const results = await Promise.allSettled(invitePromises);
 
-      const newInvite = new Invite({
-        email: singleEmail,
-        workspaceId,
-        role,
-        token: inviteToken,
-        invitedBy: inviterId,
-        expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
-        isPublicLink: false,
-      });
-      await newInvite.save();
+    // Analyze results
+    const summary = {
+      total: emailArray.length,
+      sent: 0,
+      skipped: 0,
+      failed: 0,
+      details: [],
+    };
 
-      const acceptUrl = `${config.frontendUrl}/accept-invite?token=${inviteToken}`;
-
-      const emailSubject = `You've been invited to join ${workspace.name} on DYVE`;
-      const emailHtml = generateInviteEmail({
-        workspaceName: workspace.name,
-        inviterName: req.user.profile.name,
-        inviterAvatar: req.user.profile.avatar,
-        role,
-        acceptUrl,
-        expiryDays: 7,
-      });
-
-      await sendEmail(singleEmail, emailSubject, emailHtml);
-    }
+    results.forEach((result) => {
+      if (result.status === "fulfilled") {
+        const value = result.value;
+        summary.details.push(value);
+        if (value.status === "sent") summary.sent++;
+        else if (value.status === "skipped") summary.skipped++;
+        else if (value.status === "failed") summary.failed++;
+      } else {
+        summary.failed++;
+        summary.details.push({
+          status: "failed",
+          error: result.reason.message,
+        });
+      }
+    });
 
     return sendSuccessResponse(
       res,
       201,
-      "INVITES_SENT",
-      "Invitations sent successfully"
+      "INVITES_PROCESSED",
+      "Invitations processed",
+      { summary }
     );
   } catch (error) {
     return sendErrorResponse(res, 500, "INVITE_FAILED", error.message);
   }
 };
 
+// tested
 export const acceptInvite = async (req, res) => {
   try {
     const { token } = req.body;
     const { slug } = req.params;
-    
-    // The key fix is here - we determine if it's a public invite ONLY if slug is provided
-    // Email invites should never be considered public, regardless of the presence of slug
-    const isPublicInvite = slug ? true : false;
 
     // Verify and decode JWT token
     const decoded = jwt.verify(token, config.jwt.invitationSecret);
     const { email, workspaceId, role, inviterId, isPublicLink } = decoded;
+    const isPublicInvite = isPublicLink;
 
     // For public invites, validate workspace slug matches
     let workspace;
@@ -255,17 +319,29 @@ export const acceptInvite = async (req, res) => {
         token,
         email,
         workspaceId,
-        status: "pending",
+        status: "pending", // Only accept pending invites
         expiresAt: { $gt: new Date() },
       });
+
       if (!invite) {
         return sendErrorResponse(
           res,
           400,
           "INVALID_INVITE",
-          "Invalid or expired invitation"
+          "Invalid, expired or revoked invitation"
         );
       }
+
+      // Additional check for revoked status
+      if (invite.status === "revoked") {
+        return sendErrorResponse(
+          res,
+          400,
+          "INVITE_REVOKED",
+          "This invitation has been revoked by an admin"
+        );
+      }
+
       // Mark email invite as used
       await Invite.updateOne({ _id: invite._id }, { status: "accepted" });
     }
@@ -274,7 +350,10 @@ export const acceptInvite = async (req, res) => {
     const membership = await WorkspaceMember.create({
       userId,
       workspaceId,
-      role: isPublicInvite || isPublicLink ? workspace?.defaultRole || "member" : role,
+      role:
+        isPublicInvite || isPublicLink
+          ? workspace?.defaultRole || "member"
+          : role,
       invitedBy: inviterId,
       status: "active",
       joinedVia: isPublicInvite ? "public_link" : "email_invite",
@@ -347,49 +426,112 @@ export const acceptInvite = async (req, res) => {
   }
 };
 
-export const revokeInvite = async (req, res) => {
+// tested
+export const revokeInvitation = async (req, res) => {
   try {
     const { inviteId } = req.params;
-    const userId = req.user._id;
+    const userId = req.user._id; // Current user ID from JWT
 
-    // Verify Admin Permissions
-    const isAdmin = await WorkspaceMember.exists({
+    // 1. First find the invitation to get workspaceId
+    const invitation = await Invite.findOne({
       _id: inviteId,
-      userId,
-      role: "admin",
+      status: "pending", // Only revoke pending invites
     });
 
-    if (!isAdmin) {
-      return sendErrorResponse(res, 403, "FORBIDDEN", "Admin access required");
+    if (!invitation) {
+      return sendErrorResponse(
+        res,
+        404,
+        "INVITE_NOT_FOUND",
+        "Invitation not found or already processed"
+      );
     }
 
-    // Revoke the invite
-    await Invite.updateOne({ _id: inviteId }, { status: "revoked" });
+    const { workspaceId } = invitation;
+
+    // 2. Verify the requesting user has admin permissions in this workspace
+    const member = await WorkspaceMember.findOne({
+      workspaceId,
+      userId,
+      status: "active", // Only check active members
+    });
+
+    if (!member) {
+      return sendErrorResponse(
+        res,
+        403,
+        "NOT_A_MEMBER",
+        "You are not a member of this workspace"
+      );
+    }
+
+    const { role } = member;
+
+    if (role !== "admin" && role !== "owner") {
+      return sendErrorResponse(
+        res,
+        403,
+        "FORBIDDEN",
+        "Admin access required to revoke invitations"
+      );
+    }
+
+    // 3. Revoke the invitation
+    const updatedInvite = await Invite.findOneAndUpdate(
+      { _id: inviteId },
+      { status: "revoked" },
+      { new: true }
+    );
+
+    if (!updatedInvite) {
+      return sendErrorResponse(
+        res,
+        500,
+        "REVOKE_FAILED",
+        "Failed to revoke invitation"
+      );
+    }
 
     return sendSuccessResponse(
       res,
       200,
       "INVITE_REVOKED",
-      "Invitation revoked successfully"
+      "Invitation successfully revoked",
+      { invite: updatedInvite }
     );
   } catch (error) {
-    return sendErrorResponse(res, 500, "REVOKE_INVITE_FAILED", error.message);
+    return sendErrorResponse(res, 500, "SERVER_ERROR", error.message);
   }
 };
 
+// tested
 export const listInvites = async (req, res) => {
   try {
     const { workspaceId } = req.params;
-    const userId = req.userId; // From JWT
+    const userId = req.user._id; // From JWT
 
     // Verify Admin Permissions
-    const isAdmin = await WorkspaceMember.exists({
+    const member = await WorkspaceMember.findOne({
       workspaceId,
       userId,
-      role: "admin",
     });
 
-    if (!isAdmin) {
+    console.log("memeber is ----", member);
+
+    if (!member) {
+      return sendErrorResponse(
+        res,
+        404,
+        "NOT_FOUND",
+        "Member not found in workspace"
+      );
+    }
+
+    const { role } = member;
+
+    if (role === "admin" || role === "owner") {
+      // ✅ Allowed
+    } else {
       return sendErrorResponse(res, 403, "FORBIDDEN", "Admin access required");
     }
 

@@ -2,7 +2,7 @@ import express from "express";
 import {
   inviteUserByEmail,
   acceptInvite,
-  revokeInvite,
+  revokeInvitation,
   listInvites,
 } from "../controllers/invitation.controller.js";
 import { userAuthMiddlewareForWorkspace } from "../middlewares/authMiddleWare.js";
@@ -19,12 +19,7 @@ router.post(
   userAuthMiddlewareForWorkspace,
   acceptInvite
 );
-router.post(
-  "/accept-invite",
-  userAuthMiddlewareForWorkspace,
-  acceptInvite
-);
-router.patch("/profile", userAuthMiddlewareForWorkspace, revokeInvite);
-router.get("/invite", userAuthMiddlewareForWorkspace, listInvites);
+router.patch("/revoke/:inviteId", userAuthMiddlewareForWorkspace, revokeInvitation);
+router.get("/invite/:workspaceId", userAuthMiddlewareForWorkspace, listInvites);
 
 export default router;
