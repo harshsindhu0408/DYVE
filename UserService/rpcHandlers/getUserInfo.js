@@ -1,8 +1,7 @@
-
-// rpc/userRpcHandler.js
 import amqplib from "amqplib";
 import { User } from "../models/user.model.js";
-
+import dotenv from "dotenv";
+dotenv.config();
 export const startUserRpcHandler = async () => {
   const connection = await amqplib.connect(process.env.RABBITMQ_URL);
   const channel = await connection.createChannel();
