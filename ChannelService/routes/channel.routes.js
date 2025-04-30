@@ -11,24 +11,27 @@ import {
   deleteChannel,
 } from "../controllers/channel.controller.js";
 
+import { userAuthMiddlewareForWorkspace, validateWorkspaceAdmin } from "../middlewares/authMiddleWare.js";
+
 const router = express.Router();
 
-router.post("/createchannel", createChannel);  //create
+router.post("/create-channel", userAuthMiddlewareForWorkspace, validateWorkspaceAdmin, createChannel);
 
-router.put("/:channelId", updateChannel); //update
+router.put("/:channelId", userAuthMiddlewareForWorkspace, validateWorkspaceAdmin, updateChannel);
 
-router.get("/:channelId", getChannelById);  // get channel by id
+router.get("/:channelId", userAuthMiddlewareForWorkspace, getChannelById);
 
-router.get("/workspace/:workspaceId", getChannelsByWorkspaceId); // get all channels in a workspace by id
+router.get("/workspace/:workspaceId", userAuthMiddlewareForWorkspace, getChannelsByWorkspaceId);
 
-router.get("/", getAllChannels); // get all channels
+router.get("/", userAuthMiddlewareForWorkspace, getAllChannels);
 
-router.get("/user/:userId", getChannelsByUserId); // Get all channels created by a specific user
+router.get("/user/:userId", getChannelsByUserId);
 
-router.get("/type/:type", getChannelsByType); // Get all channels of a specific type
+router.get("/type/:type", userAuthMiddlewareForWorkspace, getChannelsByType);
 
-router.get("/name/:name", getChannelsByName); // Get all channels with a specific name
+router.get("/name/:name", userAuthMiddlewareForWorkspace, getChannelsByName);
 
-router.delete("/:channelId", deleteChannel); // Delete a channel by ID
+router.delete("/:channelId", userAuthMiddlewareForWorkspace, validateWorkspaceAdmin, deleteChannel);
 
 export default router;
+
