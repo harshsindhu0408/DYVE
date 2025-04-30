@@ -619,7 +619,6 @@ export const deleteChannel = async (req, res) => {
   }
 };
 
-
 //tested
 export const archiveChannel = async (req, res) => {
   try {

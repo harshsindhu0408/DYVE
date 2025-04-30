@@ -11,6 +11,7 @@ import { setupEventListeners } from "./services/eventHandlers.js";
 import { startConsumer } from "./rpcHandlers/index.js";
 import workspaceMemberRoutes from "./routes/workspaceMember.routes.js";
 import cors from "cors";
+import { connectRedis } from "./services/redis.js";
 
 dotenv.config();
 const app = express();
@@ -20,6 +21,7 @@ setupUserEventListeners();
 setupEventListeners();
 await startConsumer();
 app.use(cors());
+await connectRedis();
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));

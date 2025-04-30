@@ -1,6 +1,7 @@
 // workspace/services/userCache.js
 import { eventBus } from "./rabbit.js";
-import redis from "./redis.js";
+import { redis } from "./redis.js";
+
 
 // Initialize listener
 export const setupUserEventListeners = () => {

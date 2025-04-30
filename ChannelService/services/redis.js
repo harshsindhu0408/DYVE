@@ -1,13 +1,26 @@
-import Redis from 'ioredis';
+import { createClient } from 'redis';
 
-const redis = new Redis({
-  host: process.env.REDIS_HOST || 'localhost',
-  port: process.env.REDIS_PORT || 6379,
-  retryStrategy: (times) => Math.min(times * 50, 2000),
+const redis = createClient({
+  url: process.env.REDIS_URL,
+  socket: {
+    tls: false, 
+    reconnectStrategy: (retries) => Math.min(retries * 100, 5000)
+  }
 });
 
-// Log connection status
-redis.on('connect', () => console.log('Redis connected'));
 redis.on('error', (err) => console.error('Redis error:', err));
+redis.on('connect', () => console.log('Redis connected'));
+redis.on('ready', () => console.log('Redis ready'));
 
-export default redis;
+let isConnected = false;
+
+async function connectRedis() {
+  if (!isConnected) {
+    await redis.connect();
+    isConnected = true;
+    console.log("✅ Redis service started");
+  }
+  return redis;
+}
+
+export { redis, connectRedis };

@@ -1,7 +1,7 @@
 import ChannelMember from "../models/channelMembers.model.js";
 import { eventBus } from "./rabbit.js";
-import redis from "./redis.js";
 import Channel from "../models/channel.model.js";
+import { redis } from "./redis.js";
 
 export const setupEventListeners = () => {
   eventBus.subscribe(

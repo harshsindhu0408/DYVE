@@ -10,6 +10,7 @@ import { setupRabbit } from "./rpcHandlers/userClient.js";
 import { setupEventListeners } from "./services/eventHandlers.js";
 import channelRoutes from "./routes/channel.routes.js";
 import cors from "cors";
+import { connectRedis } from "./services/redis.js";
 
 const app = express();
 connectDB();
@@ -22,6 +23,7 @@ setupEventListeners();
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
+await connectRedis();
 
 // Swagger definition
 const swaggerDefinition = {

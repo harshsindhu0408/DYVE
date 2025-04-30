@@ -5,11 +5,7 @@ import {
   sendErrorResponse,
   sendSuccessResponse,
 } from "../Utils/responseUtils.js";
-import Channel from "../models/channel.model.js";
 import dotenv from "dotenv";
-import { checkAdminPermission } from "../rpcHandlers/verifyUserRole.service.js";
-import { requestUserData } from "../services/userAccess.js";
-import redis from "../services/redis.js";
 import { getCachedUserRole } from "../Utils/getUserRoleFromWorkspace.js";
 dotenv.config();
 

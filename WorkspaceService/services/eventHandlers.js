@@ -1,7 +1,7 @@
 // Add to workspace service's event listeners file
 import { WorkspaceMember } from "../models/workspaceMember.model.js";
 import { eventBus } from "./rabbit.js";
-import redis from "./redis.js";
+import { redis } from "./redis.js";
 
 export const setupEventListeners = async () => {
   // Existing workspace member update handler
