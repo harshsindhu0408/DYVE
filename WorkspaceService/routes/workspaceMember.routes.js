@@ -2,7 +2,6 @@ import express from "express";
 import {
   listWorkspaceMembers,
   getWorkspaceMember,
-  updateWorkspaceMember,
   removeWorkspaceMember,
 } from "../controllers/members.controller.js";
 import { userAuthMiddlewareForWorkspace } from "../middlewares/authMiddleWare.js";
@@ -19,11 +18,11 @@ router.get(
   userAuthMiddlewareForWorkspace,
   getWorkspaceMember
 );
-router.patch(
-  "/:workspaceId/members/:userId",
-  userAuthMiddlewareForWorkspace,
-  updateWorkspaceMember
-);
+// router.patch(
+//   "/:workspaceId/members/:userId",
+//   userAuthMiddlewareForWorkspace,
+//   updateWorkspaceMember
+// );
 router.delete(
   "/:workspaceId/members/:userId",
   userAuthMiddlewareForWorkspace,

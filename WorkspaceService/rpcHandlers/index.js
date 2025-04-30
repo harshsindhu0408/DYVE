@@ -1,8 +1,8 @@
 import amqp from "amqplib";
-import { 
+import {
   handleCheckWorkspaceRole,
   handleUpdateMemberRole,
-  handleCheckOtherOwners
+  handleCheckOtherOwners,
 } from "./workspaceRpcHandlers.js";
 
 export const startConsumer = async () => {
@@ -10,11 +10,11 @@ export const startConsumer = async () => {
     const connection = await amqp.connect(process.env.RABBITMQ_URL);
     const channel = await connection.createChannel();
 
-    await channel.assertQueue("workspace_rpc_queue", { 
+    await channel.assertQueue("workspace_rpc_queue", {
       durable: true,
       arguments: {
-        'x-message-ttl': 60000 // 1 minute TTL for RPC
-      }
+        "x-message-ttl": 60000, // 1 minute TTL for RPC
+      },
     });
     channel.prefetch(1); // Process one message at a time
 
@@ -22,17 +22,41 @@ export const startConsumer = async () => {
 
     channel.consume("workspace_rpc_queue", async (msg) => {
       try {
-        const { action, payload } = JSON.parse(msg.content.toString());
-        
+        if (!msg) {
+          console.warn("Received null message");
+          return;
+        }
+
+        const messageContent = msg.content.toString();
+        let parsed;
+
+        try {
+          parsed = JSON.parse(messageContent);
+        } catch (e) {
+          console.error("Failed to parse message:", messageContent);
+          channel.nack(msg);
+          return;
+        }
+
+        // Handle both 'action' and legacy 'type' fields
+        const action = parsed.action || parsed.type;
+
+        if (!action) {
+          console.warn("Message missing action/type:", parsed);
+          channel.nack(msg);
+          return;
+        }
+
         const enrichedMsg = {
-          payload,
+          payload: parsed.payload || {},
           replyTo: msg.properties.replyTo,
           correlationId: msg.properties.correlationId,
         };
 
         let response;
-        switch (action) {
+        switch (action.toLowerCase()) {
           case "check_permissions":
+          case "check_workspace_role": // Handle legacy type
             response = await handleCheckWorkspaceRole(channel, enrichedMsg);
             break;
           case "update_member_role":
@@ -42,12 +66,12 @@ export const startConsumer = async () => {
             response = await handleCheckOtherOwners(channel, enrichedMsg);
             break;
           default:
-            console.warn(`❗ Unknown RPC action: ${action}`);
-            response = { 
-              error: { 
-                code: "INVALID_ACTION", 
-                message: "Unknown RPC action" 
-              } 
+            console.warn(`Unknown RPC action: ${action}`);
+            response = {
+              error: {
+                code: "INVALID_ACTION",
+                message: "Unknown RPC action",
+              },
             };
         }
 
@@ -59,7 +83,7 @@ export const startConsumer = async () => {
         channel.ack(msg);
       } catch (error) {
         console.error("RPC processing failed:", error);
-        channel.nack(msg); // Reject message on error
+        channel.nack(msg);
       }
     });
 
@@ -68,9 +92,8 @@ export const startConsumer = async () => {
       console.log("RabbitMQ connection closed, reconnecting...");
       setTimeout(startConsumer, 5000);
     });
-
   } catch (error) {
     console.error("Failed to start RPC consumer:", error);
-    setTimeout(startConsumer, 5000); // Retry on failure
+    setTimeout(startConsumer, 5000);
   }
 };

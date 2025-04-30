@@ -63,6 +63,13 @@ const WorkspaceMemberSchema = new mongoose.Schema(
 );
 
 WorkspaceMemberSchema.index({ userId: 1, workspaceId: 1 }, { unique: true });
+WorkspaceMemberSchema.index({ workspaceId: 1, status: 1 });
+WorkspaceMemberSchema.index({
+  workspaceId: 1,
+  status: 1,
+  "userDisplay.name": 1,
+});
+WorkspaceMemberSchema.index({ workspaceId: 1, status: 1, email: 1 });
 
 export const WorkspaceMember = mongoose.model(
   "WorkspaceMember",

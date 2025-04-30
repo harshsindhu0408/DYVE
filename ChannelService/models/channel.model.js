@@ -1,18 +1,15 @@
 import mongoose from "mongoose";
-import slugify from "slugify";
 
 const channelSchema = new mongoose.Schema(
   {
     workspaceId: {
-      type: String, // External service ID (string)
+      type: String,
       required: [true, "Workspace ID is required"],
       index: true,
     },
-    channelId: {
+    workspaceName: {
       type: String,
-      required: [true, "Channel ID is required"],
-      unique: true,
-      index: true,
+      required: [true, "Workspace name is required"],
     },
     name: {
       type: String,
@@ -22,15 +19,10 @@ const channelSchema = new mongoose.Schema(
       minlength: [1, "Channel name must be at least 1 character"],
       validate: {
         validator: function (v) {
-          return !/^[0-9]+$/.test(v); // Prevent numeric-only names
+          return !/^[0-9]+$/.test(v);
         },
         message: "Channel name cannot be numbers only",
       },
-    },
-    slug: {
-      type: String,
-      unique: true,
-      index: true,
     },
     description: {
       type: String,
@@ -47,10 +39,8 @@ const channelSchema = new mongoose.Schema(
       userId: { type: String, required: true },
       name: { type: String, required: true },
       avatar: String,
-    },
-    workspaceName: {
-      type: String,
-      required: true,
+      status: String,
+      bio: String,
     },
     isArchived: {
       type: Boolean,
@@ -99,21 +89,6 @@ const channelSchema = new mongoose.Schema(
   }
 );
 
-// Generate slug before saving
-channelSchema.pre("save", function (next) {
-  if (this.isModified("name")) {
-    this.slug = slugify(this.name, {
-      lower: true,
-      strict: true,
-      remove: /[*+~.()'"!:@]/g,
-    });
-  }
-  next();
-});
-
-// Compound index for workspace and slug uniqueness
-channelSchema.index({ workspaceId: 1, slug: 1 }, { unique: true });
-
 // Virtual for member count
 channelSchema.virtual("memberCount", {
   ref: "ChannelMember",
@@ -121,6 +96,7 @@ channelSchema.virtual("memberCount", {
   foreignField: "channelId",
   count: true,
 });
+
 
 // Query helper for active channels
 channelSchema.query.active = function () {

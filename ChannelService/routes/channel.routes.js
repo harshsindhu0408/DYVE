@@ -9,26 +9,58 @@ import {
   getChannelsByType,
   getChannelsByName,
   deleteChannel,
+  archiveChannel,
 } from "../controllers/channel.controller.js";
+import {
+  userAuthMiddlewareForChannel,
+  validateWorkspaceAdmin,
+} from "../middlewares/authMiddleWare.js";
 
 const router = express.Router();
 
-router.post("/createchannel", createChannel); //create
+router.post(
+  "/",
+  userAuthMiddlewareForChannel,
+  validateWorkspaceAdmin,
+  createChannel
+); //create
 
-router.put("/:channelId", updateChannel); //update
+router.patch(
+  "/:channelId",
+  userAuthMiddlewareForChannel,
+  validateWorkspaceAdmin,
+  updateChannel
+); //update
 
-router.get("/:channelId", getChannelById); // get channel by id
+router.get("/:channelId", userAuthMiddlewareForChannel, getChannelById); // get channel by id
 
-router.get("/workspace/:workspaceId", getChannelsByWorkspaceId); // get all channels in a workspace by id
+router.get(
+  "/workspace/:workspaceId",
+  userAuthMiddlewareForChannel,
+  getChannelsByWorkspaceId
+); // get all channels in a workspace by id
 
-router.get("/", getAllChannels); // get all channels
+router.get("/", userAuthMiddlewareForChannel, getAllChannels); // get all channels
 
-router.get("/user/:userId", getChannelsByUserId); // Get all channels created by a specific user
+router.get("/user/:userId", userAuthMiddlewareForChannel, getChannelsByUserId); // Get all channels created by a specific user
 
-router.get("/type/:type", getChannelsByType); // Get all channels of a specific type
+router.get("/type/:type", userAuthMiddlewareForChannel, getChannelsByType); // Get all channels of a specific type
 
-router.get("/name/:name", getChannelsByName); // Get all channels with a specific name
+router.get("/name/:name", userAuthMiddlewareForChannel, getChannelsByName); // Get all channels with a specific name
 
-router.delete("/:channelId", deleteChannel); // Delete a channel by ID
+router.delete(
+  "/:channelId",
+  userAuthMiddlewareForChannel,
+  validateWorkspaceAdmin,
+  deleteChannel
+); // Delete a channel by ID
+
+router.patch(
+  "/archive/:channelId",
+  userAuthMiddlewareForChannel,
+  validateWorkspaceAdmin,
+  archiveChannel
+);
+
 
 export default router;

@@ -12,7 +12,6 @@ export const handleCheckWorkspaceRole = async (channel, msg) => {
       userId,
       status: "active",
     });
-
     return {
       data: {
         hasAccess: ["admin", "owner"].includes(member?.role),

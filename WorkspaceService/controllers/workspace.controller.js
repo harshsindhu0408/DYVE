@@ -7,6 +7,7 @@ import {
   sendErrorResponse,
   sendSuccessResponse,
 } from "../Utils/responseUtils.js";
+import { requestUserData } from "../services/userAccess.js";
 
 const validateOwnership = async (workspaceId, userId) => {
   const workspace = await Workspace.findOne({
@@ -20,8 +21,6 @@ const validateOwnership = async (workspaceId, userId) => {
 // tested
 export const createWorkspace = async (req, res) => {
   try {
-    console.log("file inside the request is ---", req.file);
-
     const { name, description } = req.body;
     const ownerId = req.user._id;
 
@@ -63,10 +62,27 @@ export const createWorkspace = async (req, res) => {
       email: req.user.email,
     });
 
+
     await eventBus.publish("workspace_events", "workspace.created", {
       workspaceId: newWorkspace._id,
       ownerId,
+      workspaceName: newWorkspace.name,
       hasLogo: !!req.file,
+      defaultChannel: {
+        name: "general",
+        description: "General discussion channel",
+        isPublic: true,
+        createdBy: ownerId,
+      },
+      userData: { 
+        profile: {
+          name: req.user.profile.name,
+          avatar: req.user.profile.avatar,
+          bio: req.user.profile.bio,
+        },
+        status: req.user.status,
+        email: req.user.email,
+      },
     });
 
     return sendSuccessResponse(

@@ -1,14 +1,12 @@
-
 import ChannelMember from "../models/channelMembers.model.js";
 import { eventBus } from "./rabbit.js";
 import redis from "./redis.js";
+import Channel from "../models/channel.model.js";
 
 export const setupEventListeners = () => {
-
-  // Existing workspace member update handler
   eventBus.subscribe(
     "user_events",
-    "workspace_service_events_queue",
+    "channel_service_user_update_queue",
     "user.updated",
     async (data) => {
       try {
@@ -33,10 +31,9 @@ export const setupEventListeners = () => {
     }
   );
 
-  // New handler for user data responses
   eventBus.subscribe(
     "user_events",
-    "workspace_service_data_queue",
+    "channel_service_data_queue",
     "user.data.response",
     async (message) => {
       try {
@@ -55,19 +52,220 @@ export const setupEventListeners = () => {
     }
   );
 
+  eventBus.subscribe(
+    "user_events",
+    "channel_service_user_delete_queue",
+    "user.deleted",
+    async (message) => {
+      try {
+        if (!message?.userId) {
+          console.error("Invalid user deletion message format:", message);
+          return;
+        }
+
+        const { userId } = message;
+
+        // Soft delete all channel memberships
+        const memberResult = await ChannelMember.updateMany(
+          { userId },
+          {
+            $set: {
+              status: "deleted",
+              "userDisplay.status": "deleted",
+              deletedAt: new Date(),
+            },
+          }
+        );
+
+        // Update channels where user was the creator
+        const channelResult = await Channel.updateMany(
+          { "createdBy.userId": userId },
+          {
+            $set: {
+              "createdBy.status": "deleted",
+              "createdBy.avatar": null,
+            },
+          }
+        );
+
+        await eventBus.publish(
+          "channel_events",
+          "user.channel_memberships.deleted",
+          {
+            userId,
+            deletedCount: memberResult.modifiedCount,
+            updatedChannelsCount: channelResult.modifiedCount,
+            timestamp: new Date().toISOString(),
+          }
+        );
+      } catch (error) {
+        console.error("Failed to process user deletion:", error);
+        await eventBus.publish("error_events", "channel.user_deletion.failed", {
+          userId: message?.userId,
+          error: error.message,
+          timestamp: new Date().toISOString(),
+        });
+      }
+    }
+  );
+
+  eventBus.subscribe(
+    "workspace_events",
+    "channel_service_workspace_create_queue",
+    "workspace.created",
+    async (event) => {
+      try {
+        const {
+          workspaceId,
+          ownerId,
+          workspaceName,
+          defaultChannel,
+          userData,
+        } = event;
+
+        // Enhanced validation
+        if (!event || typeof event !== "object") {
+          throw new Error("Event is not an object");
+        }
+
+        const requiredFields = ["workspaceId", "ownerId", "userData"];
+        const missingFields = requiredFields.filter((field) => !event[field]);
+
+        if (missingFields.length > 0) {
+          throw new Error(
+            `Missing required fields: ${missingFields.join(", ")}`
+          );
+        }
+
+        if (
+          !event.userData?.profile ||
+          typeof event.userData.profile !== "object"
+        ) {
+          throw new Error("Invalid userData.profile format");
+        }
+
+        // Create the default public channel
+        const newChannel = await Channel.create({
+          workspaceId,
+          name: defaultChannel?.name || "general",
+          description:
+            defaultChannel?.description || "General discussion channel",
+          type: "public",
+
+          workspaceName,
+          createdBy: {
+            userId: ownerId,
+            name: userData.profile.name,
+            avatar: userData.profile.avatar,
+            status: userData.status,
+            bio: userData.profile.bio,
+          },
+        });
+
+        // Add the workspace owner as channel member
+        await ChannelMember.create({
+          channelId: newChannel._id,
+          userId: ownerId,
+          userDisplay: {
+            name: userData.profile.name,
+            avatar: userData.profile.avatar,
+            status: userData.status,
+            bio: userData.profile.bio,
+          },
+          role: "owner",
+          lastReadAt: new Date(),
+          notificationPref: "all",
+        });
+
+        await eventBus.publish("channel_events", "channel.created", {
+          channelId: newChannel._id,
+          workspaceId,
+          isPublic: true,
+          initialMembers: [ownerId],
+        });
+      } catch (error) {
+        console.error("Failed to create default channel:", error);
+        if (error.name !== "MongoError" || error.code !== 11000) {
+          await eventBus.publish("error_events", "channel.creation.failed", {
+            workspaceId: event?.workspaceId,
+            ownerId: event?.ownerId,
+            error: error.message,
+          });
+        }
+      }
+    }
+  );
+
   console.log("✅ User data event listeners ready");
 };
 
 async function updateChannelMembers(userId, changes) {
-  await ChannelMember.updateMany(
-    { userId },
-    {
-      $set: {
-        "userDisplay.name": changes.name,
-        "userDisplay.avatar": changes.avatar,
-        "userDisplay.status": changes.status,
-        "userDisplay.bio": changes.bio,
-      },
+
+  if (!userId) {
+    console.warn("Skipping update: Missing userId");
+    return;
+  }
+
+  if (
+    !changes ||
+    typeof changes !== "object" ||
+    Object.keys(changes).length === 0
+  ) {
+    console.warn("Skipping update: No valid changes provided");
+    return;
+  }
+
+  try {
+    // Prepare the updates for both ChannelMember and Channel collections
+    const memberUpdates = {};
+    const channelUpdates = {};
+
+    // Only include fields that actually exist in changes
+    if (changes.name) {
+      memberUpdates["userDisplay.name"] = changes.name;
+      channelUpdates["createdBy.name"] = changes.name;
     }
-  );
+    if (changes.avatar) {
+      memberUpdates["userDisplay.avatar"] = changes.avatar;
+      channelUpdates["createdBy.avatar"] = changes.avatar;
+    }
+    if (changes.status) {
+      memberUpdates["userDisplay.status"] = changes.status;
+      channelUpdates["createdBy.status"] = changes.status;
+    }
+    if (changes.bio) {
+      memberUpdates["userDisplay.bio"] = changes.bio;
+      channelUpdates["createdBy.bio"] = changes.bio;
+    }
+
+    // Execute updates only if we have valid fields
+    const updateOperations = [];
+
+    if (Object.keys(memberUpdates).length > 0) {
+      updateOperations.push(
+        ChannelMember.updateMany({ userId }, { $set: memberUpdates })
+      );
+    }
+
+    if (Object.keys(channelUpdates).length > 0) {
+      updateOperations.push(
+        Channel.updateMany(
+          { "createdBy.userId": userId },
+          { $set: channelUpdates }
+        )
+      );
+    }
+
+    if (updateOperations.length === 0) {
+      console.warn("No valid fields to update");
+      return;
+    }
+
+    // Execute all updates in parallel
+    const results = await Promise.all(updateOperations);
+
+  } catch (error) {
+    console.error("Error updating user profile across collections:", error);
+    throw error; // Re-throw if you want the caller to handle it
+  }
 }

@@ -3,8 +3,7 @@ import { WorkspaceMember } from "../models/workspaceMember.model.js";
 import { eventBus } from "./rabbit.js";
 import redis from "./redis.js";
 
-export const setupEventListeners = () => {
-
+export const setupEventListeners = async () => {
   // Existing workspace member update handler
   eventBus.subscribe(
     "user_events",
@@ -55,6 +54,50 @@ export const setupEventListeners = () => {
     }
   );
 
+  await eventBus.subscribe(
+    "workspace_queries",
+    "workspace_user_service_data",
+    "workspace.user.data.request",
+    async ({ userId, workspaceId, correlationId }) => {
+      try {
+        console.log(`Data request received for workspace user: ${userId}`);
+
+        const user = await WorkspaceMember.findOne({
+          userId: userId,
+          workspaceId: workspaceId,
+        }).lean();
+        if (!user) {
+          console.warn(`User not found: ${userId}`);
+          return;
+        }
+
+        // Prepare minimal required user data
+        const userData = {
+          id: user._id,
+          userId: user.userId,
+          name: user.userDisplay.name,
+          email: user.email,
+          avatar: user.userDisplay.avatar,
+          phone: user.userDisplay.phone,
+          bio: user.userDisplay.bio,
+          status: user.status,
+          role: user.role,
+        };
+
+        await publishWithRetry(
+          "workspace_events",
+          "workspace.user.data.response",
+          { userId, userData, correlationId },
+          { correlationId }
+        );
+      } catch (error) {
+        console.error(`Error processing data request for ${userId}:`, error);
+        await handleHandlerError(error, { userId, correlationId });
+        throw error;
+      }
+    }
+  );
+
   console.log("✅ User data event listeners ready");
 };
 
@@ -70,4 +113,45 @@ async function updateWorkspaceMembers(userId, changes) {
       },
     }
   );
+}
+
+async function publishWithRetry(
+  exchange,
+  routingKey,
+  message,
+  options = {},
+  maxAttempts = 3
+) {
+  let attempts = 0;
+  while (attempts < maxAttempts) {
+    try {
+      await eventBus.publish(exchange, routingKey, message, options);
+      return;
+    } catch (error) {
+      attempts++;
+      console.error(`Publish attempt ${attempts} failed:`, error);
+
+      if (attempts >= maxAttempts) {
+        console.error("Max publish attempts reached");
+        throw error;
+      }
+
+      await new Promise((resolve) =>
+        setTimeout(resolve, Math.pow(2, attempts) * 1000)
+      );
+    }
+  }
+}
+
+async function handleHandlerError(error, context) {
+  try {
+    await eventBus.publish("user_errors", "user.handler_error", {
+      ...context,
+      error: error.message,
+      stack: error.stack,
+      timestamp: new Date(),
+    });
+  } catch (publishError) {
+    console.error("Failed to publish error event:", publishError);
+  }
 }

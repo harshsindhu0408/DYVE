@@ -8,6 +8,9 @@ import {
 import Channel from "../models/channel.model.js";
 import dotenv from "dotenv";
 import { checkAdminPermission } from "../rpcHandlers/verifyUserRole.service.js";
+import { requestUserData } from "../services/userAccess.js";
+import redis from "../services/redis.js";
+import { getCachedUserRole } from "../Utils/getUserRoleFromWorkspace.js";
 dotenv.config();
 
 export const userAuthMiddlewareForChannel = async (req, res, next) => {
@@ -56,7 +59,7 @@ export const userAuthMiddlewareForChannel = async (req, res, next) => {
     // Check if user exists
     let user;
     try {
-      const response = await axios.get(`${config.user}/profile`, {
+      const response = await axios.get(`${config.userBaseUrl}/profile`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       user = response.data;
@@ -78,7 +81,7 @@ export const userAuthMiddlewareForChannel = async (req, res, next) => {
       });
     }
 
-    if (user.tokenVersion !== decoded.tokenVersion) {
+    if (user.data.tokenVersion !== decoded.tokenVersion) {
       return res.status(401).json({
         success: false,
         code: "INVALID_TOKEN_VERSION",
@@ -87,7 +90,7 @@ export const userAuthMiddlewareForChannel = async (req, res, next) => {
     }
 
     // Check if user is active
-    if (user.status !== "active") {
+    if (user.data.status !== "active") {
       return res.status(403).json({
         success: false,
         code: "ACCOUNT_DEACTIVATED",
@@ -129,54 +132,36 @@ export const userAuthMiddlewareForChannel = async (req, res, next) => {
 
 export const validateWorkspaceAdmin = async (req, res, next) => {
   try {
-    const { channelId } = req.params;
+    const { workspaceId } = req.body;
     const userId = req.user._id;
-    if (!channelId) {
+
+    if (!workspaceId) {
       return sendErrorResponse(
         res,
         400,
-        "CHANNEL_ID_REQUIRED",
-        "Channel ID is required"
+        "WORKSPACE_ID_REQUIRED",
+        "Workspace ID is required"
       );
     }
-    if (!userId) {
+
+    const role = await getCachedUserRole(userId, workspaceId);
+
+    if (role !== "owner" && role !== "admin") {
       return sendErrorResponse(
         res,
-        400,
-        "USER_ID_REQUIRED",
-        "User ID is required"
-      );
-    }
-    const channelData = await Channel.findById(channelId);
-    if (!channelData) {
-      return sendErrorResponse(
-        res,
-        404,
-        "CHANNEL_NOT_FOUND",
-        "Channel not found"
+        403,
+        "FORBIDDEN",
+        "Workspace admin access required"
       );
     }
 
-    const { hasAccess, role } = await checkAdminPermission(
-      channelData.workspaceId,
-      userId
-    );
-
-    if (hasAccess) return next();
-
-    return sendErrorResponse(
-      res,
-      403,
-      "FORBIDDEN",
-      "Admin or owner access required"
-    );
+    next();
   } catch (error) {
     return sendErrorResponse(
       res,
       500,
       "VALIDATION_ERROR",
-      "Error checking workspace role",
-      error.message
+      "Error checking workspace permissions"
     );
   }
 };
