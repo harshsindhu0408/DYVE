@@ -16,8 +16,6 @@ import {
   validateWorkspaceAdmin,
 } from "../middlewares/authMiddleWare.js";
 
-import { userAuthMiddlewareForWorkspace, validateWorkspaceAdmin } from "../middlewares/authMiddleWare.js";
-
 const router = express.Router();
 
 router.post(
