@@ -15,6 +15,17 @@ const WorkspaceSchema = new mongoose.Schema(
       lowercase: true,
       index: true,
     },
+    ownerName: {
+      type: "String",
+    },
+    createdBy: {
+      userId: { type: String },
+      name: { type: String },
+      avatar: String,
+      status: String,
+      bio: String,
+      email: String,
+    },
     ownerId: {
       type: String,
       required: [true, "Owner ID is required"],
@@ -67,3 +78,28 @@ WorkspaceSchema.pre("save", function (next) {
 });
 
 export const Workspace = mongoose.model("Workspace", WorkspaceSchema);
+
+
+WorkspaceSchema.post("save", async function (doc, next) {
+  if (!doc.logo?.url) {
+    try {
+      await Workspace.updateOne(
+        { _id: doc._id },
+        {
+          $set: {
+            logo: {
+              url: `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(
+                doc.name
+              )}`,
+              path: "auto-generated",
+            },
+          },
+        }
+      );
+      console.log(`Added logo to newly created workspace: ${doc.name}`);
+    } catch (error) {
+      console.error("Error adding logo to new workspace:", error);
+    }
+  }
+  next();
+});

@@ -8,6 +8,7 @@ import {
   sendSuccessResponse,
 } from "../Utils/responseUtils.js";
 import { requestUserData } from "../services/userAccess.js";
+import { getFullUrl } from "../Utils/urlHelper.js";
 
 const validateOwnership = async (workspaceId, userId) => {
   const workspace = await Workspace.findOne({
@@ -37,12 +38,27 @@ export const createWorkspace = async (req, res) => {
       name: name.trim(),
       description: description ? description.trim() : null,
       ownerId,
+      createdBy: {
+        name: req.user.profile.name,
+        userId: req.user._id,
+        avatar: req.user.profile.avatar,
+        status: req.user.status,
+        bio: req.user.profile.bio,
+        email: req.user.email,
+      },
+      ownerName: req.user.profile.name,
     };
 
     if (req.file) {
       workspaceData.logo = {
-        path: req.file.path, // Full server path to the file
-        url: `/uploads/workspaces/logos/${req.file.filename}`, // Public accessible URL
+        path: req.file.path,
+        url: getFullUrl(`/uploads/workspaces/logos/${req.file.filename}`),
+      };
+    } else {
+      workspaceData.logo = {
+        url: `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(
+          name
+        )}`,
       };
     }
 
@@ -62,7 +78,6 @@ export const createWorkspace = async (req, res) => {
       email: req.user.email,
     });
 
-
     await eventBus.publish("workspace_events", "workspace.created", {
       workspaceId: newWorkspace._id,
       ownerId,
@@ -74,7 +89,7 @@ export const createWorkspace = async (req, res) => {
         isPublic: true,
         createdBy: ownerId,
       },
-      userData: { 
+      userData: {
         profile: {
           name: req.user.profile.name,
           avatar: req.user.profile.avatar,
@@ -205,7 +220,7 @@ export const updateWorkspace = async (req, res) => {
     const { name, description } = req.body;
     const userId = req.user._id;
 
-    if (name.length > 50) {
+    if (name && name.length > 50) {
       await session.abortTransaction();
       return sendErrorResponse(
         res,
@@ -240,11 +255,30 @@ export const updateWorkspace = async (req, res) => {
 
     // Prepare updates
     const updates = {};
+    let shouldUpdateLogo = false;
+
     if (name && name.trim() !== workspace.name) {
       updates.name = name.trim();
+      shouldUpdateLogo = true; // Flag to update logo when name changes
     }
     if (description !== undefined) {
       updates.description = description.trim();
+    }
+
+    // Handle file upload if present
+    if (req.file) {
+      updates.logo = {
+        path: req.file.path,
+        url: getFullUrl(`/uploads/workspaces/logos/${req.file.filename}`),
+      };
+      shouldUpdateLogo = false; // If new logo uploaded, don't auto-update
+    } else if (shouldUpdateLogo) {
+      // Auto-update logo URL when name changes and no new file uploaded
+      updates.logo = {
+        url: `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(
+          name.trim()
+        )}`,
+      };
     }
 
     // Apply updates
@@ -253,6 +287,15 @@ export const updateWorkspace = async (req, res) => {
       updates,
       { new: true, session }
     );
+
+    // Update slug if name changed (assuming you have pre-save hook for slug)
+    if (updates.name) {
+      updatedWorkspace.slug = slugify(updates.name, {
+        lower: true,
+        strict: true,
+      });
+      await updatedWorkspace.save({ session });
+    }
 
     await session.commitTransaction();
 
@@ -504,7 +547,7 @@ export const updateWorkspaceLogo = async (req, res) => {
     // Update logo
     workspace.logo = {
       path: req.file.path,
-      url: `/uploads/workspaces/logos/${req.file.filename}`,
+      url: getFullUrl(`/uploads/workspaces/logos/${req.file.filename}`),
     };
     await workspace.save({ session });
 

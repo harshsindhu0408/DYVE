@@ -74,8 +74,9 @@ const channelMemberSchema = new mongoose.Schema(
   }
 );
 
-// Compound index to ensure unique user-channel pairs
+
 channelMemberSchema.index({ channelId: 1, userId: 1 }, { unique: true });
+channelMemberSchema.index({ channelId: 1, role: -1, joinedAt: 1 });
 
 channelMemberSchema.statics.syncUserData = async function (userId, userData) {
   return this.updateMany(

@@ -9,6 +9,7 @@ import { checkAdminPermission } from "./rpcHandlers/verifyUserRole.service.js";
 import { setupRabbit } from "./rpcHandlers/userClient.js";
 import { setupEventListeners } from "./services/eventHandlers.js";
 import channelRoutes from "./routes/channel.routes.js";
+import memberRoutes from './routes/members.routes.js'
 import cors from "cors";
 import { connectRedis } from "./services/redis.js";
 
@@ -54,5 +55,6 @@ const swaggerSpec = swaggerJSDoc(options);
 app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(swaggerSpec));
 
 app.use("/", channelRoutes);
+app.use("/", memberRoutes);
 
 export default app;

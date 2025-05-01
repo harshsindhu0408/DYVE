@@ -26,5 +26,7 @@ process.on("unhandledRejection", (err) => {
 });
 
 server.listen(process.env.PORT || 3001, () => {
+  server.keepAliveTimeout = 60000;
+  server.headersTimeout = 65000;
   console.log(`Channel service is running on port ${process.env.PORT}`);
 });

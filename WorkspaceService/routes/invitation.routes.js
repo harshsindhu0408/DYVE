@@ -4,6 +4,7 @@ import {
   acceptInvite,
   revokeInvitation,
   listInvites,
+  getPendingInvitesForUser,
 } from "../controllers/invitation.controller.js";
 import { userAuthMiddlewareForWorkspace } from "../middlewares/authMiddleWare.js";
 
@@ -19,7 +20,18 @@ router.post(
   userAuthMiddlewareForWorkspace,
   acceptInvite
 );
-router.patch("/revoke/:inviteId", userAuthMiddlewareForWorkspace, revokeInvitation);
+router.patch(
+  "/revoke/:inviteId",
+  userAuthMiddlewareForWorkspace,
+  revokeInvitation
+);
 router.get("/invite/:workspaceId", userAuthMiddlewareForWorkspace, listInvites);
+
+
+router.get(
+  "/user/pending", 
+  userAuthMiddlewareForWorkspace, // General auth middleware instead of workspace-specific
+  getPendingInvitesForUser
+);
 
 export default router;

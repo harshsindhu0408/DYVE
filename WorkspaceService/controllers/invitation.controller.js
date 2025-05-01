@@ -11,6 +11,7 @@ import {
   sendErrorResponse,
   sendSuccessResponse,
 } from "../Utils/responseUtils.js";
+import { getFullUrl } from "../Utils/urlHelper.js";
 
 // tested
 export const inviteUserByEmail = async (req, res) => {
@@ -549,5 +550,145 @@ export const listInvites = async (req, res) => {
     );
   } catch (error) {
     return sendErrorResponse(res, 500, "FETCH_INVITES_FAILED", error.message);
+  }
+};
+
+// tested
+export const getPendingInvitesForUser = async (req, res) => {
+  try {
+    // 1. Authentication validation
+    if (!req.user?._id) {
+      return sendErrorResponse(
+        res,
+        401,
+        "UNAUTHORIZED",
+        "Authentication required"
+      );
+    }
+
+    const { _id: userId, email } = req.user;
+
+    // 2. Email validation
+    if (!email) {
+      return sendErrorResponse(res, 400, "BAD_REQUEST", "User email not found");
+    }
+
+    // 3. Single optimized query with all required data
+    const invites = await Invite.aggregate([
+      {
+        $match: {
+          $or: [{ email: email.toLowerCase() }, { userId: userId }],
+          status: "pending",
+          expiresAt: { $gt: new Date() },
+        },
+      },
+      // Lookup workspace details
+      {
+        $lookup: {
+          from: "workspaces",
+          localField: "workspaceId",
+          foreignField: "_id",
+          as: "workspace",
+        },
+      },
+      { $unwind: { path: "$workspace", preserveNullAndEmptyArrays: false } },
+      // Filter out deleted workspaces
+      { $match: { "workspace.isDeleted": { $ne: true } } },
+      // Lookup inviter details
+      {
+        $lookup: {
+          from: "users",
+          localField: "invitedBy",
+          foreignField: "_id",
+          as: "inviter",
+        },
+      },
+      { $unwind: { path: "$inviter", preserveNullAndEmptyArrays: true } },
+      // Lookup workspace members count
+      {
+        $lookup: {
+          from: "workspacemembers",
+          localField: "workspaceId",
+          foreignField: "workspaceId",
+          as: "members",
+          pipeline: [
+            { $match: { status: "active" } }, // Only count active members
+            { $project: { _id: 1, userDisplay: 1 } }, // Only get needed fields
+          ],
+        },
+      },
+      // Project only necessary fields
+      {
+        $project: {
+          token: 0,
+          __v: 0,
+          "workspace.__v": 0,
+          "workspace.isDeleted": 0,
+          "inviter.password": 0,
+          "inviter.__v": 0,
+          "inviter.tokens": 0,
+        },
+      },
+    ]);
+
+    // 4. Format response with all required data
+    const responseData = invites.map((invite) => {
+      // Get up to 5 member avatars for preview
+      const memberAvatars = invite.members
+        .slice(0, 5)
+        .filter((m) => m.userDisplay?.avatar)
+        .map((m) => ({
+          avatar: m.userDisplay.avatar,
+          name: m.userDisplay.name,
+        }));
+
+      return {
+        id: invite._id,
+        workspace: {
+          ...invite.workspace,
+          logo: invite.workspace.logo
+            ? {
+                path: invite.workspace.logo.path,
+                url: invite.workspace.logo.url,
+              }
+            : null,
+          memberCount: invite.members.length,
+          memberAvatars,
+        },
+        role: invite.role,
+        createdAt: invite.createdAt,
+        expiresAt: invite.expiresAt,
+        inviter: invite.inviter
+          ? {
+              name:
+                invite.inviter.name ||
+                `${invite.inviter.firstName} ${invite.inviter.lastName}`,
+              avatar: invite.inviter.avatar ? invite.inviter.avatar : null,
+            }
+          : null,
+      };
+    });
+
+    return sendSuccessResponse(
+      res,
+      200,
+      "USER_INVITES_FETCHED",
+      "Pending invites fetched successfully",
+      responseData
+    );
+  } catch (error) {
+    console.error("[getPendingInvitesForUser] Error:", error);
+
+    if (error.name === "CastError") {
+      return sendErrorResponse(res, 400, "BAD_REQUEST", "Invalid data format");
+    }
+
+    return sendErrorResponse(
+      res,
+      500,
+      "SERVER_ERROR",
+      "An unexpected error occurred",
+      process.env.NODE_ENV === "development" ? error.stack : undefined
+    );
   }
 };
