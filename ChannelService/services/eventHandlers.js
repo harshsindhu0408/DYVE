@@ -208,13 +208,6 @@ export const setupEventListeners = () => {
         }
 
         const { workspaceId, userId, userData, membership } = event;
-        console.log(
-          "data aagaya sara --- ",
-          workspaceId,
-          userData,
-          userId,
-          membership
-        );
 
         // Validate required fields
         if (!workspaceId || !userId || !userData) {
@@ -233,7 +226,6 @@ export const setupEventListeners = () => {
           isArchived: false,
         });
 
-        console.log("Ye hain sare public channels ---", publicChannels)
 
         // Prepare bulk operations to add user to all public channels
         const bulkOps = publicChannels.map((channel) => ({
@@ -266,7 +258,6 @@ export const setupEventListeners = () => {
         // Execute bulk operation if there are channels
         if (bulkOps.length > 0) {
           await ChannelMember.bulkWrite(bulkOps);
-          console.log("sare channel mein add krdiya haiiiiiii");
         }
 
         // Publish success event

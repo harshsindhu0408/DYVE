@@ -381,8 +381,6 @@ export const acceptInvite = async (req, res) => {
       email: userDataService.email,
     });
 
-    console.log("user data service ye hai bhai ---", userDataService);
-
     // Emit real-time event with all required data
     await eventBus.publish("workspace_events", "workspace.member.joined", {
       workspaceId,
