@@ -381,10 +381,10 @@ export const acceptInvite = async (req, res) => {
       email: userDataService.email,
     });
 
-    // Emit real-time event with all required data
+
     await eventBus.publish("workspace_events", "workspace.member.joined", {
       workspaceId,
-      ownerId, // Now properly included
+      ownerId,
       userId,
       membership,
       userData: userDataService,
