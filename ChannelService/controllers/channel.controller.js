@@ -100,7 +100,7 @@ export const createChannel = async (req, res) => {
         status: req.user.status || "active",
         bio: req.user.profile.bio,
       },
-      role: isGeneral ? "owner" : "admin",
+      role: "owner",
       lastReadAt: new Date(),
       notificationPref: customSettings?.defaultNotificationPref || "all",
       joinedAt: new Date(),
@@ -433,7 +433,7 @@ export const getChannelsByUserId = async (req, res) => {
       );
     }
 
-    const channels = await Channel.find({ "createdBy.userId": userId });
+    const channels = await Channel.find({ userId: userId });
     if (!channels || channels.length === 0) {
       return sendErrorResponse(
         res,
@@ -677,6 +677,75 @@ export const archiveChannel = async (req, res) => {
       500,
       "CHANNEL_ARCHIVE_FAILED",
       "An internal server error occurred while archiving the channel",
+      error.message
+    );
+  }
+};
+
+
+export const getMyChannels = async (req, res) => {
+  try {
+    // Validate authenticated user
+    if (!req.user || !req.user._id) {
+      return sendErrorResponse(
+        res,
+        401,
+        "UNAUTHORIZED",
+        "User authentication required"
+      );
+    }
+
+    const userId = req.user._id;
+
+    // Find all channel memberships for this user
+    const memberships = await ChannelMember.find({ userId })
+      .populate({
+        path: 'channel',
+        match: { isArchived: false } // Only include non-archived channels
+      })
+      .sort({ 'channel.isGeneral': -1, 'channel.name': 1 });
+
+    // Filter out any memberships where channel is null (archived channels)
+    const validMemberships = memberships.filter(m => m.channel !== null);
+
+    if (validMemberships.length === 0) {
+      return sendSuccessResponse(
+        res,
+        200,
+        "NO_CHANNELS_FOUND",
+        "You are not a member of any active channels",
+        []
+      );
+    }
+
+    // Format the response
+    const channels = validMemberships.map(membership => ({
+      ...membership.channel.toObject(),
+      membership: {
+        role: membership.role,
+        joinedAt: membership.joinedAt,
+        lastReadAt: membership.lastReadAt,
+        notificationPref: membership.notificationPref,
+        isMuted: membership.isMuted,
+        unreadCount: membership.unreadCount,
+        starred: membership.starred
+      }
+    }));
+
+    return sendSuccessResponse(
+      res,
+      200,
+      "USER_CHANNELS_FOUND",
+      "User's channels retrieved successfully",
+      channels
+    );
+  } catch (error) {
+    console.error("Get User Channels Error:", error);
+    return sendErrorResponse(
+      res,
+      500,
+      "CHANNELS_RETRIEVAL_FAILED",
+      "An internal server error occurred while retrieving user's channels",
       error.message
     );
   }

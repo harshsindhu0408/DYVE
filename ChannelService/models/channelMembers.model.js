@@ -10,7 +10,7 @@ const channelMemberSchema = new mongoose.Schema(
     },
     userId: {
       type: String,
-      required: [true, "Owner ID is required"],
+      required: [true, "User ID is required"],
       index: true,
       validate: {
         validator: function (v) {
@@ -29,6 +29,7 @@ const channelMemberSchema = new mongoose.Schema(
       avatar: String,
       status: String,
       bio: String,
+      email: String,
     },
     role: {
       type: String,

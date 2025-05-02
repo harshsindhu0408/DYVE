@@ -545,6 +545,7 @@ export async function sendMagicLoginOTP(req, res) {
           avatar: `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(
             normalizedEmail.split("@")[0]
           )}`,
+          bio: "Welcome to DYVE",
         },
         status: "active",
         role: "member",

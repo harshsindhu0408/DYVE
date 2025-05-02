@@ -196,11 +196,106 @@ export const setupEventListeners = () => {
     }
   );
 
+  eventBus.subscribe(
+    "workspace_events",
+    "channel_service_member_add_queue",
+    "workspace.member.joined",
+    async (event) => {
+      try {
+        // Validate event structure
+        if (!event || typeof event !== "object") {
+          throw new Error("Event is not an object");
+        }
+
+        const { workspaceId, userId, userData, membership } = event;
+        console.log(
+          "data aagaya sara --- ",
+          workspaceId,
+          userData,
+          userId,
+          membership
+        );
+
+        // Validate required fields
+        if (!workspaceId || !userId || !userData) {
+          throw new Error("Missing required fields in event");
+        }
+
+        // Validate userData structure
+        if (typeof userData !== "object" || !userData.name) {
+          throw new Error("Invalid userData format - must contain name");
+        }
+
+        // Find all public, non-archived channels in the workspace
+        const publicChannels = await Channel.find({
+          workspaceId,
+          type: "public",
+          isArchived: false,
+        });
+
+        console.log("Ye hain sare public channels ---", publicChannels)
+
+        // Prepare bulk operations to add user to all public channels
+        const bulkOps = publicChannels.map((channel) => ({
+          updateOne: {
+            filter: {
+              channelId: channel._id,
+              userId: userId,
+            },
+            update: {
+              $setOnInsert: {
+                channelId: channel._id,
+                userId: userId,
+                userDisplay: {
+                  name: userData.name,
+                  avatar: userData.avatar || "",
+                  status: userData.status || "active",
+                  bio: userData.bio || "",
+                  email: userData.email || "",
+                },
+                role: membership?.role || "member",
+                lastReadAt: new Date(),
+                notificationPref:
+                  channel.customSettings?.defaultNotificationPref || "all",
+              },
+            },
+            upsert: true,
+          },
+        }));
+
+        // Execute bulk operation if there are channels
+        if (bulkOps.length > 0) {
+          await ChannelMember.bulkWrite(bulkOps);
+          console.log("sare channel mein add krdiya haiiiiiii");
+        }
+
+        // Publish success event
+        await eventBus.publish(
+          "channel_events",
+          "channel.membership.bulk_added",
+          {
+            userId,
+            workspaceId,
+            channelIds: publicChannels.map((c) => c._id),
+            timestamp: new Date(),
+          }
+        );
+      } catch (error) {
+        console.error("Failed to add user to public channels:", error);
+        await eventBus.publish("error_events", "channel.member_add.failed", {
+          workspaceId: event?.workspaceId,
+          userId: event?.userId,
+          error: error.message,
+          timestamp: new Date(),
+        });
+      }
+    }
+  );
+
   console.log("✅ User data event listeners ready");
 };
 
 async function updateChannelMembers(userId, changes) {
-
   if (!userId) {
     console.warn("Skipping update: Missing userId");
     return;
@@ -263,7 +358,6 @@ async function updateChannelMembers(userId, changes) {
 
     // Execute all updates in parallel
     const results = await Promise.all(updateOperations);
-
   } catch (error) {
     console.error("Error updating user profile across collections:", error);
     throw error; // Re-throw if you want the caller to handle it

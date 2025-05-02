@@ -249,6 +249,7 @@ export const acceptInvite = async (req, res) => {
 
     // For public invites, validate workspace slug matches
     let workspace;
+    let ownerId;
     if (isPublicInvite) {
       workspace = await Workspace.findOne({ slug, isDeleted: false });
       if (!workspace) {
@@ -275,6 +276,19 @@ export const acceptInvite = async (req, res) => {
           "This workspace doesn't accept public invites"
         );
       }
+      ownerId = workspace.ownerId;
+    } else {
+      // For non-public invites, get the workspace to find the owner
+      workspace = await Workspace.findById(workspaceId);
+      if (!workspace) {
+        return sendErrorResponse(
+          res,
+          404,
+          "WORKSPACE_NOT_FOUND",
+          "Workspace not found"
+        );
+      }
+      ownerId = workspace.ownerId;
     }
 
     // Handle authentication - user must be logged in
@@ -367,11 +381,21 @@ export const acceptInvite = async (req, res) => {
       email: userDataService.email,
     });
 
-    // Emit real-time event
-    await eventBus.publish("workspace_events", "workspace.member_joined", {
+    console.log("user data service ye hai bhai ---", userDataService);
+
+    // Emit real-time event with all required data
+    await eventBus.publish("workspace_events", "workspace.member.joined", {
       workspaceId,
+      ownerId, // Now properly included
       userId,
-      membershipId: membership._id,
+      membership,
+      userData: userDataService,
+      workspaceName: workspace.name, // Include workspace name for channel creation
+      defaultChannel: {
+        // Include default channel details
+        name: "general",
+        description: "General discussion channel",
+      },
     });
 
     return sendSuccessResponse(
