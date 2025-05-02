@@ -682,10 +682,9 @@ export const archiveChannel = async (req, res) => {
   }
 };
 
-
 export const getMyChannels = async (req, res) => {
   try {
-    // Validate authenticated user
+    // Validate authenticated user and workspace ID
     if (!req.user || !req.user._id) {
       return sendErrorResponse(
         res,
@@ -695,31 +694,44 @@ export const getMyChannels = async (req, res) => {
       );
     }
 
+    const { workspaceId } = req.params; // Get workspaceId from URL params
+    if (!workspaceId) {
+      return sendErrorResponse(
+        res,
+        400,
+        "WORKSPACE_ID_REQUIRED",
+        "Workspace ID is required"
+      );
+    }
+
     const userId = req.user._id;
 
-    // Find all channel memberships for this user
+    // Find all channel memberships for this user in the specified workspace
     const memberships = await ChannelMember.find({ userId })
       .populate({
-        path: 'channel',
-        match: { isArchived: false } // Only include non-archived channels
+        path: "channel",
+        match: {
+          isArchived: false,
+          workspaceId: workspaceId,
+        },
       })
-      .sort({ 'channel.isGeneral': -1, 'channel.name': 1 });
+      .sort({ "channel.isGeneral": -1, "channel.name": 1 });
 
-    // Filter out any memberships where channel is null (archived channels)
-    const validMemberships = memberships.filter(m => m.channel !== null);
+    // Filter out any memberships where channel is null (archived channels or wrong workspace)
+    const validMemberships = memberships.filter((m) => m.channel !== null);
 
     if (validMemberships.length === 0) {
       return sendSuccessResponse(
         res,
         200,
         "NO_CHANNELS_FOUND",
-        "You are not a member of any active channels",
+        "You are not a member of any active channels in this workspace",
         []
       );
     }
 
     // Format the response
-    const channels = validMemberships.map(membership => ({
+    const channels = validMemberships.map((membership) => ({
       ...membership.channel.toObject(),
       membership: {
         role: membership.role,
@@ -728,15 +740,15 @@ export const getMyChannels = async (req, res) => {
         notificationPref: membership.notificationPref,
         isMuted: membership.isMuted,
         unreadCount: membership.unreadCount,
-        starred: membership.starred
-      }
+        starred: membership.starred,
+      },
     }));
 
     return sendSuccessResponse(
       res,
       200,
       "USER_CHANNELS_FOUND",
-      "User's channels retrieved successfully",
+      "User's channels in workspace retrieved successfully",
       channels
     );
   } catch (error) {
