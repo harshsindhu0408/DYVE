@@ -388,9 +388,8 @@ export const acceptInvite = async (req, res) => {
       userId,
       membership,
       userData: userDataService,
-      workspaceName: workspace.name, // Include workspace name for channel creation
+      workspaceName: workspace.name,
       defaultChannel: {
-        // Include default channel details
         name: "general",
         description: "General discussion channel",
       },
