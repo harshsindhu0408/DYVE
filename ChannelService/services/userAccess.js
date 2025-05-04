@@ -1,82 +1,100 @@
 // userDataAccess.js in channel service
 import { eventBus } from "./rabbit.js";
 
-export async function requestUserData(userId, workspaceId) {
-  return new Promise(async (resolve) => {
-    const correlationId = generateCorrelationId();
-    const responseQueue = `workspace_user_data_res_${correlationId}`;
+const REQUEST_TIMEOUT = 3000;
 
-    // Set up temporary listener
-    const cleanup = () => {
-      eventBus.unsubscribe(responseQueue);
-      clearTimeout(timeout);
+async function createTemporaryRequest({
+  exchange,
+  queuePrefix,
+  routingKey,
+  requestExchange,
+  requestRoutingKey,
+  requestPayload,
+  responseValidator = () => true,
+}) {
+  return new Promise(async (resolve, reject) => {
+    const correlationId = generateCorrelationId();
+    const responseQueue = `${queuePrefix}_${correlationId}`;
+    let timeoutId;
+
+    const cleanup = async () => {
+      clearTimeout(timeoutId);
+      try {
+        await eventBus.unsubscribe(responseQueue);
+        await eventBus.deleteQueue(responseQueue);
+      } catch (error) {
+        console.error("Cleanup error:", error);
+      }
     };
 
-    const timeout = setTimeout(() => {
-      cleanup();
-      resolve(null);
-    }, 3000); // 3-second timeout
+    const fail = (error) => {
+      cleanup().finally(() => reject(error));
+    };
 
-    eventBus.subscribe(
-      "workspace_events",
-      responseQueue,
-      "workspace.user.data.response",
-      async (message) => {
-        if (message.correlationId === correlationId && message.userData) {
-          cleanup();
-          resolve(message.userData);
+    timeoutId = setTimeout(() => {
+      fail(new Error(`Request timed out after ${REQUEST_TIMEOUT}ms`));
+    }, REQUEST_TIMEOUT);
+
+    try {
+      await eventBus.subscribe(
+        exchange,
+        responseQueue,
+        routingKey,
+        async (message) => {
+          try {
+            if (
+              message.correlationId === correlationId &&
+              responseValidator(message)
+            ) {
+              await cleanup();
+              resolve(message);
+            }
+          } catch (error) {
+            fail(error);
+          }
+        },
+        {
+          exclusive: true,
+          autoDelete: true,
+          durable: false,
         }
-      }
-    );
+      );
 
-    // Send data request
-    await eventBus.publish("workspace_queries", "workspace.user.data.request", {
-      userId,
-      workspaceId,
-      correlationId,
-    });
+      await eventBus.publish(requestExchange, requestRoutingKey, {
+        ...requestPayload,
+        correlationId,
+        responseQueue, // Make response queue explicit
+      });
+    } catch (error) {
+      fail(error);
+    }
+  });
+}
+
+export async function requestUserData(userId, workspaceId) {
+  return createTemporaryRequest({
+    exchange: "workspace_events",
+    queuePrefix: "workspace_user_data_res",
+    routingKey: "workspace.user.data.response",
+    requestExchange: "workspace_queries",
+    requestRoutingKey: "workspace.user.data.request",
+    requestPayload: { userId, workspaceId },
+    responseValidator: (message) => !!message.userData,
   });
 }
 
 export async function requestUserDataFromUserService(userId) {
-  return new Promise(async (resolve) => {
-    const correlationId = generateCorrelationId();
-    const responseQueue = `user_data_res_${correlationId}`;
-
-    // Set up temporary listener
-    const cleanup = () => {
-      eventBus.unsubscribe(responseQueue);
-      clearTimeout(timeout);
-    };
-
-    const timeout = setTimeout(() => {
-      cleanup();
-      resolve(null);
-    }, 3000); // 3-second timeout
-
-    eventBus.subscribe(
-      "user_events",
-      responseQueue,
-      "user.data.response",
-      async (message) => {
-        if (message.correlationId === correlationId && message.userData) {
-          cleanup();
-          resolve(message.userData);
-        }
-      }
-    );
-
-    // Send data request
-    await eventBus.publish("user_queries", "user.data.request", {
-      userId,
-      correlationId,
-    });
+  return createTemporaryRequest({
+    exchange: "user_events",
+    queuePrefix: "user_data_res",
+    routingKey: "user.data.response",
+    requestExchange: "user_queries",
+    requestRoutingKey: "user.data.request",
+    requestPayload: { userId },
+    responseValidator: (message) => !!message.userData,
   });
 }
 
 function generateCorrelationId() {
-  return (
-    Math.random().toString(36).substring(2, 15) +
-    Math.random().toString(36).substring(2, 15)
-  );
+  return crypto.randomUUID(); // Better than Math.random()
 }

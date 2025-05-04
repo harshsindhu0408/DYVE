@@ -682,6 +682,8 @@ export const archiveChannel = async (req, res) => {
   }
 };
 
+
+// TODO here we have to validate if the user is still member of that workspace
 export const getMyChannels = async (req, res) => {
   try {
     // Validate authenticated user and workspace ID

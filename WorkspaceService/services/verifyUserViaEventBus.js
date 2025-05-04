@@ -9,6 +9,7 @@ export async function verifyUserViaEventBus(email) {
     // Set up temporary listener
     const cleanup = () => {
       eventBus.unsubscribe(responseQueue);
+      eventBus.deleteQueue(responseQueue);
       clearTimeout(timeout);
     };
 

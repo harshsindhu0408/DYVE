@@ -226,7 +226,6 @@ export const setupEventListeners = () => {
           isArchived: false,
         });
 
-
         // Prepare bulk operations to add user to all public channels
         const bulkOps = publicChannels.map((channel) => ({
           updateOne: {
@@ -283,7 +282,83 @@ export const setupEventListeners = () => {
     }
   );
 
-  console.log("✅ User data event listeners ready");
+  eventBus.subscribe(
+    "channel_queries",
+    "channel_shared_members",
+    "channel.shared_private_members.request",
+    async (message) => {
+      const { userId, workspaceId, correlationId, replyTo } = message;
+      console.log("call aagai channel mein -----", userId)
+      const cacheKey = `channel_members:${workspaceId}`;
+
+      try {
+        // Try cache first
+        const cached = await redis.get(cacheKey);
+        if (cached) {
+          await eventBus.publish(
+            "channel_events",
+            replyTo,
+            {
+              correlationId,
+              members: JSON.parse(cached),
+              workspaceId,
+              timestamp: new Date().toISOString(),
+            }
+          );
+          return;
+        }
+
+        // Optimized query
+        const channelIds = await Channel.distinct("_id", {
+          workspaceId,
+          isPrivate: true,
+        });
+
+        const members = await ChannelMember.aggregate([
+          {
+            $match: {
+              channelId: { $in: channelIds },
+              userId: { $ne: userId },
+            },
+          },
+          { $group: { _id: "$userId" } },
+        ]);
+
+        console.log("all members have been fetched----", members);
+
+        const memberIds = members.map((m) => m._id.toString());
+
+        // Cache for 5 minutes
+        await redis.set(cacheKey, JSON.stringify(memberIds), "EX", 300);
+
+        await eventBus.publish(
+          "channel_events", // ADDED MISSING EXCHANGE
+          replyTo, // Response goes to the temporary queue
+          {
+            correlationId,
+            members: memberIds,
+            workspaceId,
+            timestamp: new Date().toISOString(),
+          }
+        );
+      } catch (error) {
+        console.error("Error handling request:", error);
+        await eventBus.publish(
+          "error_events", // Error exchange
+          "channel.shared_members.error",
+          {
+            correlationId,
+            error: error.message,
+            userId,
+            workspaceId,
+            timestamp: new Date().toISOString(),
+          }
+        );
+      }
+    }
+  );
+
+  console.log("✅ Channel data event listeners ready");
 };
 
 async function updateChannelMembers(userId, changes) {

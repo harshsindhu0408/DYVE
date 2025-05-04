@@ -2,6 +2,7 @@
 import { WorkspaceMember } from "../models/workspaceMember.model.js";
 import { eventBus } from "./rabbit.js";
 import { redis } from "./redis.js";
+import { Workspace } from "../models/workspace.model.js";
 
 export const setupEventListeners = async () => {
   // Existing workspace member update handler
@@ -98,7 +99,68 @@ export const setupEventListeners = async () => {
     }
   );
 
-  console.log("✅ User data event listeners ready");
+  // eventBus.subscribe(
+  //   "workspace_queries",
+  //   "workspace_admins",
+  //   "workspace.admins.request",
+  //   async (message) => {
+  //     const { workspaceId, correlationId, replyTo } = message;
+
+  //     try {
+  //       // First get the workspace owner from Workspace model
+  //       const workspace = await Workspace.findById(workspaceId);
+  //       if (!workspace) {
+  //         throw new Error("Workspace not found");
+  //       }
+
+  //       const adminMembers = await WorkspaceMember.find({
+  //         workspaceId,
+  //         status: "active",
+  //         role: { $in: ["admin", "owner"] },
+  //       });
+
+  //       // Combine owner from Workspace with admins from WorkspaceMember
+  //       const admins = [
+  //         workspace.ownerId, // Owner from Workspace model
+  //         ...adminMembers
+  //           .filter((member) => member.role === "admin") // Only include explicit admins
+  //           .map((member) => member.userId),
+  //       ].filter((value, index, self) => self.indexOf(value) === index); // Remove duplicates
+
+  //       const adminDetails = await WorkspaceMember.find({
+  //         userId: { $in: admins },
+  //         workspaceId,
+  //       }).select("userId userDisplay");
+
+  //       await eventBus.publish(
+  //         "workspace_events",
+  //         "workspace.admins.response",
+  //         {
+  //           correlationId,
+  //           admins: adminDetails.map((a) => ({
+  //             userId: a.userId,
+  //             name: a.userDisplay.name,
+  //             avatar: a.userDisplay.avatar,
+  //             role: a.role,
+  //           })),
+  //           workspaceId,
+  //           timestamp: new Date().toISOString(),
+  //         },
+  //         { replyTo }
+  //       );
+  //     } catch (error) {
+  //       console.error("Error handling admins request:", error);
+  //       await eventBus.publish("error_events", "workspace.admins.error", {
+  //         correlationId,
+  //         error: error.message,
+  //         workspaceId,
+  //         timestamp: new Date().toISOString(),
+  //       });
+  //     }
+  //   }
+  // );
+
+  console.log("✅ Workspace data event listeners ready");
 };
 
 async function updateWorkspaceMembers(userId, changes) {

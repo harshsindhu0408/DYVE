@@ -20,7 +20,7 @@ app.use(
         message: "User service is currently unavailable",
       });
     },
-    timeout: 5000, // 5 second timeout
+    timeout: 50000, // 5 second timeout
   })
 );
 
@@ -36,7 +36,7 @@ app.use(
         message: "Workspace service is currently unavailable",
       });
     },
-    timeout: 5000, // 5 second timeout
+    timeout: 50000, // 5 second timeout
   })
 );
 
@@ -50,7 +50,20 @@ app.use("/channel", createProxyMiddleware({
       message: "Channel service is currently unavailable",
     });
   },
-  timeout: 5000, // 5 second timeout
+  timeout: 50000, // 5 second timeout
+}));
+
+app.use("/message", createProxyMiddleware({
+  target: process.env.BASE_MESSAGE,
+  changeOrigin: true,
+  onError: (err, req, res) => {
+    console.error("Message Service Proxy error:", err);
+    res.status(502).json({
+      success: false,
+      message: "Message service is currently unavailable",
+    });
+  },
+  timeout: 50000, // 5 second timeout
 }));
 
 // Health check endpoint
@@ -63,6 +76,8 @@ app.get("/", (req, res) => {
 });
 
 app.listen(3000, () => {
+  server.keepAliveTimeout = 60000;
+  server.headersTimeout = 65000;
   console.log("Gateway server listening on port 3000");
 });
 

@@ -381,18 +381,40 @@ export const acceptInvite = async (req, res) => {
       email: userDataService.email,
     });
 
+    const workspaceAdmins = await WorkspaceMember.find({
+      workspaceId,
+      status: "active",
+      role: { $in: ["admin", "owner", "member"] },
+    }).lean();
 
     await eventBus.publish("workspace_events", "workspace.member.joined", {
       workspaceId,
       ownerId,
       userId,
       membership,
-      userData: userDataService,
+      userData: {
+        name: userDataService.name,
+        avatar: userDataService.avatar,
+        status: userDataService.status,
+        bio: userDataService.bio,
+        email: userDataService.email,
+      },
       workspaceName: workspace.name,
       defaultChannel: {
         name: "general",
         description: "General discussion channel",
       },
+      adminMembers: workspaceAdmins.map((admin) => ({
+        userId: admin.userId,
+        userDisplay: {
+          name: admin.userDisplay.name,
+          avatar: admin.userDisplay.avatar,
+          status: admin.userDisplay.status,
+          bio: admin.userDisplay.bio,
+          email: admin.email,
+        },
+      })),
+      shouldCreateWelcomeDMs: "true",
     });
 
     return sendSuccessResponse(

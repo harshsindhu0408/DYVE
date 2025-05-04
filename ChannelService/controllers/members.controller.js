@@ -103,6 +103,8 @@ export async function addToChannel(req, res) {
       }
     );
 
+    // TODO fire an event which will create the dm of the added user with all of the private channel members
+
     return sendSuccessResponse(
       res,
       200,

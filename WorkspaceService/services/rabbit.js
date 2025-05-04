@@ -284,6 +284,78 @@ class EventBus {
       console.log(`No active subscription for queue: ${queue}`);
     }
   }
+
+  async deleteQueue(queue) {
+    try {
+      await this.ensureConnection();
+      if (!this.channel) {
+        throw new Error("RabbitMQ channel not available");
+      }
+
+      // Delete the queue if it exists
+      await this.channel.deleteQueue(queue);
+      console.log(`Queue ${queue} deleted successfully`);
+      return true;
+    } catch (error) {
+      // If queue doesn't exist, we can ignore the error
+      if (error.message.includes("NOT_FOUND")) {
+        console.log(`Queue ${queue} not found, nothing to delete`);
+        return true;
+      }
+      console.error(`Error deleting queue ${queue}:`, error);
+      throw error;
+    }
+  }
+
+  async request(exchange, routingKey, message, options = {}) {
+    const correlationId = generateCorrelationId();
+    const responseQueue = `temp_res_${correlationId}`;
+
+    return new Promise(async (resolve, reject) => {
+      // Setup response queue
+      await this.channel.assertQueue(responseQueue, {
+        exclusive: true,
+        autoDelete: true,
+        durable: false,
+      });
+
+      // Setup consumer
+      const consumerTag = await this.channel.consume(
+        responseQueue,
+        (msg) => {
+          if (!msg) return;
+
+          try {
+            const content = JSON.parse(msg.content.toString());
+            if (content.correlationId === correlationId) {
+              this.channel.ack(msg);
+              this.channel.deleteQueue(responseQueue);
+              clearTimeout(timeout);
+              resolve(content.data);
+            }
+          } catch (error) {
+            this.channel.nack(msg, false, false);
+            reject(error);
+          }
+        },
+        { noAck: false }
+      );
+
+      // Setup timeout
+      const timeout = setTimeout(() => {
+        this.channel.cancel(consumerTag);
+        this.channel.deleteQueue(responseQueue);
+        reject(new Error("Request timeout"));
+      }, options.timeout || 5000);
+
+      // Send request
+      await this.publish(exchange, routingKey, {
+        ...message,
+        correlationId,
+        replyTo: responseQueue,
+      });
+    });
+  }
 }
 
 export const eventBus = new EventBus();

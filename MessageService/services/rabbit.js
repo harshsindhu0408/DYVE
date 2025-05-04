@@ -307,55 +307,59 @@ class EventBus {
     }
   }
 
+  // In your rabbit.js (EventBus class)
   async request(exchange, routingKey, message, options = {}) {
     const correlationId = generateCorrelationId();
     const responseQueue = `temp_res_${correlationId}`;
 
     return new Promise(async (resolve, reject) => {
-      // Setup response queue
-      await this.channel.assertQueue(responseQueue, {
-        exclusive: true,
-        autoDelete: true,
-        durable: false,
-      });
+      try {
+        await this.channel.assertQueue(responseQueue, {
+          exclusive: true,
+          autoDelete: true,
+          durable: false,
+        });
 
-      // Setup consumer
-      const consumerTag = await this.channel.consume(
-        responseQueue,
-        (msg) => {
-          if (!msg) return;
+        // Store the consumer tag properly
+        const { consumerTag } = await this.channel.consume(
+          responseQueue,
+          (msg) => {
+            if (!msg) return;
 
-          try {
-            const content = JSON.parse(msg.content.toString());
-            if (content.correlationId === correlationId) {
-              this.channel.ack(msg);
-              this.channel.deleteQueue(responseQueue);
-              clearTimeout(timeout);
-              resolve(content.data);
+            try {
+              const content = JSON.parse(msg.content.toString());
+              if (content.correlationId === correlationId) {
+                this.channel.ack(msg);
+                clearTimeout(timeout);
+                resolve(content.data);
+              }
+            } catch (error) {
+              this.channel.nack(msg, false, false);
+              reject(error);
             }
-          } catch (error) {
-            this.channel.nack(msg, false, false);
-            reject(error);
-          }
-        },
-        { noAck: false }
-      );
+          },
+          { noAck: false }
+        );
 
-      // Setup timeout
-      const timeout = setTimeout(() => {
-        this.channel.cancel(consumerTag);
-        this.channel.deleteQueue(responseQueue);
-        reject(new Error("Request timeout"));
-      }, options.timeout || 5000);
+        const timeout = setTimeout(() => {
+          this.channel.cancel(consumerTag.toString()); // Ensure consumerTag is string
+          reject(new Error("Request timeout"));
+        }, options.timeout || 5000);
 
-      // Send request
-      await this.publish(exchange, routingKey, {
-        ...message,
-        correlationId,
-        replyTo: responseQueue,
-      });
+        await this.publish(exchange, routingKey, {
+          ...message,
+          correlationId,
+          replyTo: responseQueue,
+        });
+      } catch (error) {
+        reject(error);
+      }
     });
   }
 }
 
 export const eventBus = new EventBus();
+
+function generateCorrelationId() {
+  return crypto.randomUUID();
+}

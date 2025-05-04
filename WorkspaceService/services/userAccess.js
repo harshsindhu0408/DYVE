@@ -9,6 +9,7 @@ export async function requestUserData(userId) {
     // Set up temporary listener
     const cleanup = () => {
       eventBus.unsubscribe(responseQueue);
+      eventBus.deleteQueue(responseQueue);
       clearTimeout(timeout);
     };
 
