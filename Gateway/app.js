@@ -76,8 +76,6 @@ app.get("/", (req, res) => {
 });
 
 app.listen(3000, () => {
-  server.keepAliveTimeout = 60000;
-  server.headersTimeout = 65000;
   console.log("Gateway server listening on port 3000");
 });
 

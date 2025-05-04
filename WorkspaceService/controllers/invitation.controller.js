@@ -387,6 +387,8 @@ export const acceptInvite = async (req, res) => {
       role: { $in: ["admin", "owner", "member"] },
     }).lean();
 
+
+
     await eventBus.publish("workspace_events", "workspace.member.joined", {
       workspaceId,
       ownerId,
@@ -426,6 +428,7 @@ export const acceptInvite = async (req, res) => {
         workspaceId,
         ...((isPublicInvite || isPublicLink) && { workspaceSlug: slug }),
         membershipId: membership._id,
+        workspaceAllMembersCount,
       }
     );
   } catch (error) {

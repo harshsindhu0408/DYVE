@@ -446,13 +446,39 @@ export const listWorkspaces = async (req, res) => {
       );
     }
 
+    // Get total count of workspaces for pagination
+    const total = await Workspace.countDocuments(query);
+
     const workspaces = await Workspace.find(query)
       .sort({ createdAt: -1 })
       .skip((page - 1) * limit)
       .limit(limit)
       .lean();
 
-    const total = await Workspace.countDocuments(query);
+    // Get all workspace IDs from the fetched workspaces
+    const workspaceIds = workspaces.map((ws) => ws._id);
+
+    // Find all members for these workspaces
+    const allWorkspaceMembers = await WorkspaceMember.find({
+      workspaceId: { $in: workspaceIds },
+      status: "active",
+      role: { $in: ["admin", "owner", "member"] },
+    }).lean();
+
+    // Group members by workspaceId for easy lookup
+    const membersByWorkspace = allWorkspaceMembers.reduce((acc, member) => {
+      if (!acc[member.workspaceId]) {
+        acc[member.workspaceId] = [];
+      }
+      acc[member.workspaceId].push(member);
+      return acc;
+    }, {});
+
+    // Attach members to each workspace
+    const workspacesWithMembers = workspaces.map((workspace) => ({
+      ...workspace,
+      members: membersByWorkspace[workspace._id] || [],
+    }));
 
     return sendSuccessResponse(
       res,
@@ -460,7 +486,7 @@ export const listWorkspaces = async (req, res) => {
       "WORKSPACES_FETCHED",
       "Workspaces fetched successfully",
       {
-        workspaces,
+        workspaces: workspacesWithMembers,
         pagination: {
           page: Number(page),
           limit: Number(limit),
