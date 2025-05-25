@@ -1,2 +1,0 @@
-user - https://dyve-sigma.vercel.app
-workspace - https://dyve-workspace.vercel.app
